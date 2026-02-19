@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+scikit-learn
+pandas
+joblib
+numpy
+python-multipart
+
+# Scalable Database & GIS Extensions
+sqlalchemy
+psycopg2-binary
+geoalchemy2

@@ -25,3 +25,15 @@ venv/
 .DS_Store
 .vscode/
 .idea/
+
+# Backend Exclusions
+stillopen.db
+.env
+*.pbf
+
+# Frontend Exclusions
+node_modules/
+.next/
+out/
+build/
+.npm

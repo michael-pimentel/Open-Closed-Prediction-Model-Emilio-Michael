@@ -35,11 +35,22 @@ def has_value(x):
         return 0
     return 1
 
+def count_items(x):
+    """Count the number of items in a list/array field."""
+    if x is None: return 0
+    parsed = safe_parse_struct(x)
+    if isinstance(parsed, (list, np.ndarray)):
+        return len(parsed)
+    return 0
+
 def compute_features(record: dict, artifacts: dict = None) -> dict:
-    # record is a dictionary representing a single place
-    
-    # 1. Basic Presence Features
+    """
+    Compute all features for a single place record.
+    Compatible with the unified model trained by integrate_and_train.py.
+    """
     features = {}
+    
+    # 1. Binary Presence Features
     features['has_website'] = has_value(record.get('websites'))
     features['has_social'] = has_value(record.get('socials'))
     features['has_phone'] = has_value(record.get('phones'))
@@ -47,13 +58,18 @@ def compute_features(record: dict, artifacts: dict = None) -> dict:
     features['has_email'] = has_value(record.get('emails'))
     features['has_brand'] = has_value(record.get('brand'))
     
-    # 2. Sources Analysis
+    # 2. Count Features (new)
+    features['num_websites'] = count_items(record.get('websites'))
+    features['num_socials'] = count_items(record.get('socials'))
+    features['num_phones'] = count_items(record.get('phones'))
+    
+    # 3. Sources Analysis
     sources = record.get('sources')
     sources = safe_parse_struct(sources)
     
     num_sources = 0
     mean_conf = 0.0
-    days_since_update = 365 # Default
+    days_since_update = 365
     
     if sources and isinstance(sources, list):
         num_sources = len(sources)
@@ -81,35 +97,57 @@ def compute_features(record: dict, artifacts: dict = None) -> dict:
     features['source_mean_confidence'] = mean_conf
     features['days_since_last_update'] = days_since_update
     
-    # 3. Category Features
+    # 4. Category Features
     primary_category = 'unknown'
     cats = record.get('categories')
     cats = safe_parse_struct(cats)
     if isinstance(cats, dict):
-        primary_category = cats.get('primary', 'unknown')
+        primary_category = cats.get('primary', 'unknown') or 'unknown'
         
-    # Apply artifacts if available
     if artifacts:
-        freq_map = artifacts.get('freq_map', {})
-        le = artifacts.get('le')
-        top_cats = artifacts.get('top_cats', [])
+        # Use the new category_freq map from training
+        cat_freq = artifacts.get('category_freq', artifacts.get('freq_map', {}))
+        le = artifacts.get('label_encoder', artifacts.get('le'))
         
-        features['category_freq_score'] = freq_map.get(primary_category, 0)
+        features['category_freq_score'] = cat_freq.get(primary_category, 0)
         
-        cat_for_label = primary_category if primary_category in top_cats else 'other'
         if le:
             try:
-                # Basic check to avoid error if label unseen in le but handled by 'other' logic
-                features['category_label'] = le.transform([cat_for_label])[0]
+                features['category_label'] = le.transform([primary_category])[0]
             except:
-                 features['category_label'] = 0 
+                features['category_label'] = 0 
         else:
-             features['category_label'] = 0
+            features['category_label'] = 0
     else:
         features['category_freq_score'] = 0
         features['category_label'] = 0
     
-    # Pass through confidence
-    features['confidence'] = record.get('confidence', 0)
+    # 5. Confidence
+    features['confidence'] = float(record.get('confidence', 0))
+    
+    # 6. Name-based Features (new)
+    name = ''
+    names = record.get('names')
+    if isinstance(names, dict):
+        name = names.get('primary', '') or ''
+    elif isinstance(names, str):
+        name = names
+    # Also check direct 'name' field
+    if not name:
+        name = record.get('name', '')
+    
+    features['name_length'] = len(name)
+    
+    name_lower = name.lower()
+    features['has_closure_keyword'] = 1 if any(kw in name_lower for kw in [
+        'closed', 'former', 'defunct', 'out of business', 'coming soon',
+        'vacant', 'empty', 'available', 'for lease', 'for rent'
+    ]) else 0
+    
+    # 7. Composite: Digital Presence Score (new)
+    features['digital_presence'] = (
+        features['has_website'] + features['has_social'] + features['has_phone'] +
+        features['has_email'] + features['has_brand']
+    )
 
     return features

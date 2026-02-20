@@ -10,6 +10,7 @@ class ModelService:
     def __init__(self):
         self.model = None
         self.artifacts = None
+        self.threshold = 0.5  # Default, overridden by trained optimal
         self.load_model()
 
     def load_model(self):
@@ -19,6 +20,11 @@ class ModelService:
             if isinstance(loaded, dict):
                 self.model = loaded['model']
                 self.artifacts = loaded
+                self.threshold = loaded.get('optimal_threshold', 0.5)
+                n = loaded.get('training_samples', '?')
+                sources = loaded.get('data_sources', [])
+                print(f"  Model loaded: {n} training samples from {sources}")
+                print(f"  Optimal threshold: {self.threshold:.2f}")
             else:
                 self.model = loaded
                 self.artifacts = {}
@@ -27,56 +33,78 @@ class ModelService:
             self.model = None
 
     def predict(self, place_data: dict):
-        # Feature Engineering
+        # Compute features using the updated feature pipeline
         features_dict = compute_features(place_data, self.artifacts)
         
         status = "unknown"
         confidence = 0.0
         
         if not self.model:
-            # Mock prediction
             status = "open"
             confidence = 0.82
         else:
-            feature_cols = self.artifacts.get('features', [])
+            # Get feature column order from the model artifacts
+            feature_cols = self.artifacts.get('feature_names', 
+                           self.artifacts.get('features', []))
             
-            # DataFrame for prediction
             df_input = pd.DataFrame([features_dict])
             
-            # Ensure columns order
             if feature_cols:
-                # Add missing cols with 0
                 for c in feature_cols:
                     if c not in df_input.columns:
                         df_input[c] = 0
                 df_input = df_input[feature_cols]
 
-            prediction_cls = self.model.predict(df_input)[0] 
-            # Check if predict_proba available
+            # Get probability prediction
             if hasattr(self.model, "predict_proba"):
                 try:
-                    prediction_prob = self.model.predict_proba(df_input)[0][1] 
-                except:
-                    prediction_prob = float(prediction_cls)
+                    proba = self.model.predict_proba(df_input)[0]
+                    # proba[1] = probability of being OPEN (class 1)
+                    open_prob = float(proba[1])
+                    
+                    # Use optimized threshold
+                    if open_prob >= self.threshold:
+                        status = "open"
+                        confidence = open_prob
+                    else:
+                        status = "closed"
+                        confidence = 1.0 - open_prob
+                except Exception:
+                    prediction_cls = self.model.predict(df_input)[0]
+                    status = "open" if prediction_cls == 1 else "closed"
+                    confidence = 0.5
             else:
-                prediction_prob = float(prediction_cls)
-            
-            status = "open" if prediction_cls == 1 else "closed"
-            confidence = float(prediction_prob)
+                prediction_cls = self.model.predict(df_input)[0]
+                status = "open" if prediction_cls == 1 else "closed"
+                confidence = 0.5
 
-        # Generate explanation
+        # Generate explanation signals
         explanation = []
         if status == "open":
-            explanation.append("Model predicts this place is likely open.")
+            explanation.append("Model predicts this place is likely still in business.")
         else:
-            explanation.append("Model predicts this place is likely closed.")
+            explanation.append("Model predicts this place may be permanently closed.")
             
         if features_dict.get('has_website'):
             explanation.append("Website is active.")
+        else:
+            explanation.append("No website detected.")
+            
         if features_dict.get('has_social'):
             explanation.append("Social media presence detected.")
-        if features_dict.get('days_since_last_update', 999) < 30:
+            
+        if features_dict.get('has_phone'):
+            explanation.append("Phone number on file.")
+            
+        if features_dict.get('num_sources', 0) > 2:
+            explanation.append(f"Confirmed by {features_dict['num_sources']} data sources.")
+        elif features_dict.get('num_sources', 0) == 1:
+            explanation.append("Only 1 data source available.")
+            
+        if features_dict.get('days_since_last_update', 999) < 90:
             explanation.append("Recent data updates found.")
+        elif features_dict.get('days_since_last_update', 999) > 365:
+            explanation.append("Data may be stale (no recent updates).")
         
         return {
             "status": status,

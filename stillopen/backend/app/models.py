@@ -1,9 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
-from sqlalchemy import Column, BigInteger, String, DateTime
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, String, Float, Text, DateTime, JSON
 from sqlalchemy.sql import func
-from geoalchemy2 import Geometry
 from .database import Base
 
 # --- Pydantic API Schemas ---
@@ -28,20 +26,18 @@ class PlaceDetail(BaseModel):
 # --- SQLAlchemy Database Models ---
 class Place(Base):
     """
-    Normalized core POI table capable of holding OSM and Overture records.
-    Requires PostGIS (Geometry) and JSONB indexing.
+    Core POI table. Uses JSON for metadata storage.
+    Compatible with both SQLite (local dev) and PostgreSQL (production).
     """
     __tablename__ = "places"
     
-    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     place_id = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, index=True, nullable=False)
     category = Column(String, index=True, nullable=True)
-    
-    # Store lat/lon using Geography type for realistic real-world distance calculation (e.g. ST_DWithin)
-    source = Column(String, nullable=False, default="osm")
-    geom = Column(Geometry(geometry_type='POINT', srid=4326, use_geography=True, spatial_index=True), nullable=True)
-    
-    # Keeping raw metadata intact for Scikit-Learn feature feature engineering compatibility
-    metadata_json = Column(JSONB, nullable=True)
-    last_updated = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    address = Column(String, nullable=True)
+    lat = Column(Float, nullable=True)
+    lon = Column(Float, nullable=True)
+    source = Column(String, nullable=False, default="overture")
+    metadata_json = Column(Text, nullable=True)  # Store as JSON string for SQLite compat
+    last_updated = Column(DateTime, server_default=func.now())

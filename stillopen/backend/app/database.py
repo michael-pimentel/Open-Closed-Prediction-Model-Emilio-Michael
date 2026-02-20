@@ -2,19 +2,25 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Ensure secure backend connection with PostgreSQL
+# Use SQLite for local development, PostgreSQL for production
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg2://postgres:postgres@localhost:5432/stillopen"
+    "sqlite:///./stillopen.db"
 )
 
-# Robust connection pooling for horizontal scale
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=20,
-    max_overflow=0,
-    pool_pre_ping=True
-)
+# SQLite-compatible engine configuration
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=20,
+        max_overflow=0,
+        pool_pre_ping=True
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

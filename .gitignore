@@ -10,7 +10,7 @@ venv/
 # project_c_raw.csv
 # project_c_raw.json
 *.csv
-*.json
+project_c_raw.json
 # Keep small parquet sample if needed for demo, otherwise exclude:
 # *.parquet
 

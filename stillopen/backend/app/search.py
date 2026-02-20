@@ -2,42 +2,50 @@ import json
 import os
 import pandas as pd
 import numpy as np
-from sqlalchemy import text
-from .database import engine, Base
+from sqlalchemy import text, insert
+from .database import engine, Base, IS_POSTGRES
 from .models import Place
 from .predict import predict_place
 
+
+# =============================================================================
+# DATA SEEDING
+# =============================================================================
+
 def load_data_to_db():
     """
-    Seeds the SQLite database from the parquet dataset.
-    Skips if the database already has data.
+    Seeds the database on startup.
+    - PostgreSQL: No-op (data is ingested via osm2pgsql or Overture scripts offline)
+    - SQLite: Auto-seeds from the parquet dataset if the DB is empty
     """
-    # Create tables
+    if IS_POSTGRES:
+        print("PostgreSQL mode: Skipping auto-seed. Data should be ingested via osm2pgsql or scripts.")
+        return
+
+    # SQLite mode: create tables and seed from parquet
     Base.metadata.create_all(bind=engine)
-    
-    # Check if already seeded
+
     with engine.connect() as conn:
         result = conn.execute(text("SELECT COUNT(*) FROM places")).fetchone()
         if result[0] > 0:
             print(f"Database already seeded with {result[0]} records. Skipping.")
             return
-    
+
     # Locate parquet data
     data_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "project_c_samples.parquet")
     data_path = os.path.normpath(data_path)
-    
+
     if not os.path.exists(data_path):
-        # Try alternate path
         data_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "project_c_samples.parquet")
         data_path = os.path.normpath(data_path)
-    
+
     if not os.path.exists(data_path):
         print(f"Warning: Parquet data not found at {data_path}. Database will be empty.")
         return
-    
-    print(f"Seeding database from {data_path}...")
+
+    print(f"Seeding SQLite database from {data_path}...")
     df = pd.read_parquet(data_path)
-    
+
     records = []
     for idx, row in df.iterrows():
         # Extract the primary name
@@ -45,13 +53,13 @@ def load_data_to_db():
         name = 'Unknown'
         if isinstance(names, dict):
             name = names.get('primary', 'Unknown') or 'Unknown'
-        
+
         # Extract category
         cats = row.get('categories')
         category = 'unknown'
         if isinstance(cats, dict):
             category = cats.get('primary', 'unknown') or 'unknown'
-        
+
         # Extract address
         addrs = row.get('addresses')
         address_str = ''
@@ -66,7 +74,7 @@ def load_data_to_db():
                 if addr.get('region'):
                     parts.append(addr['region'])
                 address_str = ', '.join(parts)
-        
+
         # Build metadata dict matching what the model expects
         metadata = {}
         for col in ['websites', 'socials', 'emails', 'phones', 'brand', 'addresses', 'sources', 'categories']:
@@ -77,14 +85,14 @@ def load_data_to_db():
                 metadata[col] = val
         metadata['confidence'] = float(row.get('confidence', 0))
         metadata['open'] = int(row.get('open', 1))
-        
+
         # Store city/state from address for display
         if isinstance(addrs, (list, np.ndarray)) and len(addrs) > 0:
             addr = addrs[0]
             if isinstance(addr, dict):
                 metadata['city'] = addr.get('locality', '')
                 metadata['state'] = addr.get('region', '')
-        
+
         records.append({
             'place_id': str(row.get('id', f'place_{idx}')),
             'name': name,
@@ -95,23 +103,82 @@ def load_data_to_db():
             'source': 'overture',
             'metadata_json': json.dumps(metadata, default=str),
         })
-    
-    # Bulk insert
+
     with engine.begin() as conn:
-        from sqlalchemy import insert
         conn.execute(insert(Place), records)
-    
-    print(f"Seeded {len(records)} places into the database.")
+
+    print(f"Seeded {len(records)} places into the SQLite database.")
 
 
-def search_places(query: str, limit: int = 20):
+# =============================================================================
+# SEARCH
+# =============================================================================
+
+def _search_postgres(query: str, limit: int):
     """
-    Search places using SQLite LIKE matching.
-    For production with PostgreSQL, this should use pg_trgm for fuzzy matching.
+    PostgreSQL search using pg_trgm trigram indexes for fuzzy matching.
+    Requires the pg_trgm extension to be enabled on the database.
     """
-    if not query or len(query.strip()) < 2:
-        return []
+    with engine.connect() as conn:
+        try:
+            sql = text("""
+                SELECT 
+                    place_id, 
+                    name,
+                    ST_X(geom::geometry) AS lon, 
+                    ST_Y(geom::geometry) AS lat, 
+                    metadata_json,
+                    similarity(name, :query_str) as name_sim
+                FROM places 
+                WHERE 
+                    name ILIKE :ilike_query 
+                    OR similarity(name, :query_str) > 0.15
+                ORDER BY name_sim DESC 
+                LIMIT :limit;
+            """)
 
+            results = conn.execute(sql, {
+                "ilike_query": f"%{query}%",
+                "query_str": query,
+                "limit": limit
+            }).fetchall()
+
+            out = []
+            for row in results:
+                metadata = row.metadata_json or {}
+
+                try:
+                    pred = predict_place(metadata)
+                    status = pred.get('status', 'unknown')
+                    confidence = pred.get('confidence', 0.0)
+                except Exception:
+                    status = 'unknown'
+                    confidence = 0.0
+
+                location_str = f"Lon: {row.lon:.5f}, Lat: {row.lat:.5f}" if row.lon else "Unknown Location"
+                if isinstance(metadata, dict):
+                    if 'city' in metadata and 'state' in metadata:
+                        location_str = f"{metadata.get('city', '')}, {metadata.get('state', '')}".strip(', ')
+
+                out.append({
+                    "id": str(row.place_id),
+                    "name": row.name,
+                    "address": location_str,
+                    "status": status,
+                    "confidence": confidence
+                })
+
+            return out
+        except Exception as e:
+            print(f"PostgreSQL search error: {e}")
+            return []
+
+
+def _search_sqlite(query: str, limit: int):
+    """
+    SQLite search using LIKE matching.
+    Results are ranked by exact match > prefix match > contains match.
+    """
     with engine.connect() as conn:
         try:
             sql = text("""
@@ -126,29 +193,25 @@ def search_places(query: str, limit: int = 20):
                     name
                 LIMIT :limit
             """)
-            
+
             results = conn.execute(sql, {
                 "ilike_query": f"%{query}%",
                 "exact_query": query,
                 "start_query": f"{query}%",
                 "limit": limit
             }).fetchall()
-            
+
             out = []
             for row in results:
-                place_id = row.place_id
-                name = row.name
                 address = row.address or "Unknown Location"
-                
-                # Parse metadata for prediction
+
                 metadata = {}
                 if row.metadata_json:
                     try:
                         metadata = json.loads(row.metadata_json)
-                    except:
+                    except Exception:
                         pass
-                
-                # Run prediction
+
                 try:
                     pred = predict_place(metadata)
                     status = pred.get('status', 'unknown')
@@ -158,23 +221,54 @@ def search_places(query: str, limit: int = 20):
                     confidence = 0.0
 
                 out.append({
-                    "id": str(place_id),
-                    "name": name,
+                    "id": str(row.place_id),
+                    "name": row.name,
                     "address": address,
                     "status": status,
                     "confidence": confidence
                 })
-            
+
             return out
         except Exception as e:
-            print(f"Search error: {e}")
+            print(f"SQLite search error: {e}")
             return []
 
 
-def get_place_metadata(place_id: str):
-    """
-    Look up a place's metadata by its place_id.
-    """
+def search_places(query: str, limit: int = 20):
+    """Routes search to the appropriate backend (PostgreSQL or SQLite)."""
+    if not query or len(query.strip()) < 2:
+        return []
+
+    if IS_POSTGRES:
+        return _search_postgres(query, limit)
+    else:
+        return _search_sqlite(query, limit)
+
+
+# =============================================================================
+# PLACE DETAIL LOOKUP
+# =============================================================================
+
+def _get_metadata_postgres(place_id: str):
+    """PostgreSQL metadata lookup with JSONB."""
+    with engine.connect() as conn:
+        try:
+            sql = text("SELECT metadata_json, name FROM places WHERE place_id = :place_id")
+            row = conn.execute(sql, {"place_id": place_id}).fetchone()
+            if row and row.metadata_json:
+                metadata = row.metadata_json
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+                metadata['name'] = row.name
+                return metadata
+            return None
+        except Exception as e:
+            print(f"PostgreSQL query error: {e}")
+            return None
+
+
+def _get_metadata_sqlite(place_id: str):
+    """SQLite metadata lookup with JSON string parsing."""
     with engine.connect() as conn:
         try:
             sql = text("SELECT metadata_json, name, address FROM places WHERE place_id = :place_id")
@@ -187,5 +281,13 @@ def get_place_metadata(place_id: str):
                 return metadata
             return None
         except Exception as e:
-            print(f"Query Error: {e}")
+            print(f"SQLite query error: {e}")
             return None
+
+
+def get_place_metadata(place_id: str):
+    """Routes metadata lookup to the appropriate backend."""
+    if IS_POSTGRES:
+        return _get_metadata_postgres(place_id)
+    else:
+        return _get_metadata_sqlite(place_id)

@@ -22,7 +22,7 @@ export default function Home() {
                         Still<span className="text-emerald-500">Open</span>
                     </h1>
                     <p className="text-xl sm:text-2xl text-gray-500 font-light max-w-xl mx-auto leading-relaxed">
-                        Operational status prediction powered by <span className="font-semibold text-gray-800">metadata intelligence</span>
+                        Open or Closed prediction model powered by <span className="font-semibold text-gray-800">open source data!</span>
                     </p>
                 </div>
 

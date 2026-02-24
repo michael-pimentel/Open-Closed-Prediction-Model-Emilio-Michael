@@ -33,50 +33,49 @@ class ModelService:
             self.model = None
 
     def predict(self, place_data: dict):
-        # Compute features using the updated feature pipeline
-        features_dict = compute_features(place_data, self.artifacts)
-        
         status = "unknown"
         confidence = 0.0
+        features_dict = {}
         
-        if not self.model:
-            status = "open"
-            confidence = 0.82
-        else:
-            # Get feature column order from the model artifacts
-            feature_cols = self.artifacts.get('feature_names', 
-                           self.artifacts.get('features', []))
+        try:
+            # Compute features using the updated feature pipeline
+            features_dict = compute_features(place_data, self.artifacts)
             
-            df_input = pd.DataFrame([features_dict])
-            
-            if feature_cols:
-                for c in feature_cols:
-                    if c not in df_input.columns:
-                        df_input[c] = 0
-                df_input = df_input[feature_cols]
+            if not self.model:
+                status = "open"
+                confidence = 0.82
+            else:
+                # Get feature column order from the model artifacts
+                feature_cols = self.artifacts.get('feature_names', 
+                               self.artifacts.get('features', []))
+                
+                df_input = pd.DataFrame([features_dict])
+                
+                if feature_cols:
+                    for c in feature_cols:
+                        if c not in df_input.columns:
+                            df_input[c] = 0
+                    df_input = df_input[feature_cols]
 
-            # Get probability prediction
-            if hasattr(self.model, "predict_proba"):
-                try:
+                # Get probability prediction
+                if hasattr(self.model, "predict_proba"):
                     proba = self.model.predict_proba(df_input)[0]
-                    # proba[1] = probability of being OPEN (class 1)
                     open_prob = float(proba[1])
                     
-                    # Use optimized threshold
                     if open_prob >= self.threshold:
                         status = "open"
                         confidence = open_prob
                     else:
                         status = "closed"
                         confidence = 1.0 - open_prob
-                except Exception:
+                else:
                     prediction_cls = self.model.predict(df_input)[0]
                     status = "open" if prediction_cls == 1 else "closed"
                     confidence = 0.5
-            else:
-                prediction_cls = self.model.predict(df_input)[0]
-                status = "open" if prediction_cls == 1 else "closed"
-                confidence = 0.5
+        except Exception as e:
+            print(f"Prediction error: {e}")
+            status = "open"
+            confidence = 0.5
 
         # Generate explanation signals
         explanation = []

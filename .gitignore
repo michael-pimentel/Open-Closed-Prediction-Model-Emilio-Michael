@@ -25,6 +25,8 @@ venv/
 .DS_Store
 .vscode/
 .idea/
+.agent/
+.antigravity/
 
 # Backend Exclusions
 stillopen.db

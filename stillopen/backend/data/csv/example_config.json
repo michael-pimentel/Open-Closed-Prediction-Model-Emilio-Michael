@@ -1,0 +1,20 @@
+{
+    "_comment": "Example config for California Business Registry CSV. Copy and adapt for your dataset.",
+    "source_name": "ca_business_registry",
+    "id_col": "BusinessId",
+    "name_col": "BusinessName",
+    "lat_col": "Latitude",
+    "lon_col": "Longitude",
+    "category_col": "BusinessType",
+    "street_col": "Address",
+    "city_col": "City",
+    "state_col": "State",
+    "zip_col": "ZipCode",
+    "phone_col": "PhoneNumber",
+    "website_col": "Website",
+    "hours_col": null,
+    "extra_cols": {
+        "LicenseStatus": "license_status",
+        "NAICS": "naics_code"
+    }
+}

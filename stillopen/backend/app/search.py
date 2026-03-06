@@ -1,6 +1,12 @@
-from sqlalchemy import text
-from .database import engine
-from .predict import predict_status
+import json
+import os
+import pandas as pd
+import numpy as np
+from sqlalchemy import text, insert
+
+from .database import engine, Base, IS_POSTGRES
+from .models import Place
+from .predict import predict_place, predict_status
 from utils.canonical_metadata import build_canonical_metadata
 
 
@@ -14,7 +20,6 @@ def _extract_place_info(row, metadata: dict) -> dict:
         canonical = metadata.get("canonical") or {}
         raw = metadata.get("raw") or {}
     else:
-        # Backward-compat: older rows may store a flat metadata dict
         raw = metadata
         canonical = build_canonical_metadata(raw, lat=getattr(row, "lat", None), lon=getattr(row, "lon", None))
 
@@ -62,11 +67,101 @@ def _extract_place_info(row, metadata: dict) -> dict:
     }
 
 
+# =============================================================================
+# DATA SEEDING
+# =============================================================================
+
 def load_data_to_db():
-    pass  # Data is ingested offline via osm2pgsql / Overture scripts
+    """
+    Seeds the database on startup.
+    - PostgreSQL: No-op
+    - SQLite: Auto-seeds from parquet
+    """
+    if IS_POSTGRES:
+        return
+
+    Base.metadata.create_all(bind=engine)
+
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT COUNT(*) FROM places")).fetchone()
+        if result[0] > 0:
+            return
+
+    data_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "project_c_samples.parquet")
+    data_path = os.path.normpath(data_path)
+
+    if not os.path.exists(data_path):
+        data_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "project_c_samples.parquet")
+        data_path = os.path.normpath(data_path)
+
+    if not os.path.exists(data_path):
+        return
+
+    df = pd.read_parquet(data_path)
+
+    records = []
+    for idx, row in df.iterrows():
+        names = row.get('names')
+        name = 'Unknown'
+        if isinstance(names, dict):
+            name = names.get('primary', 'Unknown') or 'Unknown'
+
+        cats = row.get('categories')
+        category = 'unknown'
+        if isinstance(cats, dict):
+            category = cats.get('primary', 'unknown') or 'unknown'
+
+        addrs = row.get('addresses')
+        address_str = ''
+        if isinstance(addrs, (list, np.ndarray)) and len(addrs) > 0:
+            addr = addrs[0]
+            if isinstance(addr, dict):
+                parts = []
+                if addr.get('freeform'):
+                    parts.append(addr['freeform'])
+                if addr.get('locality'):
+                    parts.append(addr['locality'])
+                if addr.get('region'):
+                    parts.append(addr['region'])
+                address_str = ', '.join(parts)
+
+        metadata = {}
+        for col in ['websites', 'socials', 'emails', 'phones', 'brand', 'addresses', 'sources', 'categories']:
+            val = row.get(col)
+            if val is not None:
+                if isinstance(val, np.ndarray):
+                    val = val.tolist()
+                metadata[col] = val
+
+        metadata['confidence'] = float(row.get('confidence', 0))
+        metadata['open'] = int(row.get('open', 1))
+
+        if isinstance(addrs, (list, np.ndarray)) and len(addrs) > 0:
+            addr = addrs[0]
+            if isinstance(addr, dict):
+                metadata['city'] = addr.get('locality', '')
+                metadata['state'] = addr.get('region', '')
+
+        records.append({
+            'place_id': str(row.get('id', f'place_{idx}')),
+            'name': name,
+            'category': category,
+            'address': address_str,
+            'lat': None,
+            'lon': None,
+            'source': 'overture',
+            'metadata_json': json.dumps(metadata, default=str),
+        })
+
+    with engine.begin() as conn:
+        conn.execute(insert(Place), records)
 
 
-def search_places(
+# =============================================================================
+# POSTGRES SEARCH
+# =============================================================================
+
+def _search_postgres(
     query: str,
     limit: int = 20,
     offset: int = 0,
@@ -82,77 +177,23 @@ def search_places(
     with engine.connect() as conn:
         try:
             bbox_sql = ""
-            params: dict = {
+            params = {
                 "ilike_query": f"%{query}%",
                 "query_str": query,
                 "limit": limit,
                 "offset": offset,
             }
 
-            if all(v is not None for v in [min_lat, max_lat, min_lon, max_lon]):
+            if has_bbox:
                 bbox_sql = "AND geom && ST_MakeEnvelope(:min_lon, :min_lat, :max_lon, :max_lat, 4326)"
-                params.update(
-                    {
-                        "min_lon": min_lon,
-                        "min_lat": min_lat,
-                        "max_lon": max_lon,
-                        "max_lat": max_lat,
-                    }
-                )
+                params.update({
+                    "min_lon": min_lon,
+                    "min_lat": min_lat,
+                    "max_lon": max_lon,
+                    "max_lat": max_lat,
+                })
 
-            if query and len(query.strip()) >= 2:
-                sql = text(
-                    f"""
-                    SELECT
-                        place_id,
-                        name,
-                        category,
-                        source,
-                        ST_X(geom::geometry) AS lon,
-                        ST_Y(geom::geometry) AS lat,
-                        metadata_json,
-                        similarity(name, :query_str) AS name_sim
-                    FROM places
-                    WHERE
-                        (name ILIKE :ilike_query OR similarity(name, :query_str) > 0.15)
-                        {bbox_sql}
-                    ORDER BY name_sim DESC
-                    LIMIT :limit OFFSET :offset;
-                    """
-                )
-            else:
-                sql = text(
-                    f"""
-                    SELECT
-                        place_id,
-                        name,
-                        category,
-                        source,
-                        ST_X(geom::geometry) AS lon,
-                        ST_Y(geom::geometry) AS lat,
-                        metadata_json,
-                        1.0 AS name_sim
-                    FROM places
-                    WHERE 1=1 {bbox_sql}
-                    ORDER BY id DESC
-                    LIMIT :limit OFFSET :offset;
-                    """
-                )
-
-            results = conn.execute(sql, params).fetchall()
-            return [_extract_place_info(row, row.metadata_json or {}) for row in results]
-
-        except Exception as e:
-            print(f"Error on pg_trgm search: {e}")
-            return []
-
-
-def get_place_record(place_id: str):
-    """Full POI record for the detail view."""
-    with engine.connect() as conn:
-        try:
-            sql = text(
-                """
+            sql = text(f"""
                 SELECT
                     place_id,
                     name,
@@ -160,15 +201,134 @@ def get_place_record(place_id: str):
                     source,
                     ST_X(geom::geometry) AS lon,
                     ST_Y(geom::geometry) AS lat,
-                    metadata_json
+                    metadata_json,
+                    similarity(name, :query_str) AS name_sim
                 FROM places
-                WHERE place_id = :place_id
-                """
-            )
+                WHERE
+                    (name ILIKE :ilike_query OR similarity(name, :query_str) > 0.15)
+                    {bbox_sql}
+                ORDER BY name_sim DESC
+                LIMIT :limit OFFSET :offset;
+            """)
+
+            results = conn.execute(sql, params).fetchall()
+            return [_extract_place_info(row, row.metadata_json or {}) for row in results]
+
+        except Exception as e:
+            print(f"PostgreSQL search error: {e}")
+            return []
+
+
+# =============================================================================
+# SQLITE SEARCH
+# =============================================================================
+
+def _search_sqlite(query: str, limit: int):
+    with engine.connect() as conn:
+        try:
+            sql = text("""
+                SELECT place_id, name, address, lat, lon, metadata_json
+                FROM places 
+                WHERE name LIKE :ilike_query 
+                   OR category LIKE :ilike_query
+                ORDER BY 
+                    CASE WHEN LOWER(name) = LOWER(:exact_query) THEN 0
+                         WHEN LOWER(name) LIKE LOWER(:start_query) THEN 1
+                         ELSE 2 END,
+                    name
+                LIMIT :limit
+            """)
+
+            results = conn.execute(sql, {
+                "ilike_query": f"%{query}%",
+                "exact_query": query,
+                "start_query": f"{query}%",
+                "limit": limit
+            }).fetchall()
+
+            out = []
+            for row in results:
+                address = row.address or "Unknown Location"
+
+                metadata = {}
+                if row.metadata_json:
+                    try:
+                        metadata = json.loads(row.metadata_json)
+                    except Exception:
+                        pass
+
+                try:
+                    pred = predict_place(metadata)
+                    status = pred.get('status', 'unknown')
+                    confidence = pred.get('confidence', 0.0)
+                except Exception:
+                    status = 'unknown'
+                    confidence = 0.0
+
+                out.append({
+                    "id": str(row.place_id),
+                    "name": row.name,
+                    "address": address,
+                    "status": status,
+                    "confidence": confidence
+                })
+
+            return out
+        except Exception as e:
+            print(f"SQLite search error: {e}")
+            return []
+
+
+def search_places(query: str, limit: int = 20):
+    if not query or len(query.strip()) < 2:
+        return []
+
+    if IS_POSTGRES:
+        return _search_postgres(query, limit)
+    else:
+        return _search_sqlite(query, limit)
+
+
+# =============================================================================
+# PLACE DETAIL LOOKUP
+# =============================================================================
+
+def _get_metadata_postgres(place_id: str):
+    with engine.connect() as conn:
+        try:
+            sql = text("SELECT metadata_json, name FROM places WHERE place_id = :place_id")
             row = conn.execute(sql, {"place_id": place_id}).fetchone()
-            if row:
-                return _extract_place_info(row, row.metadata_json or {})
+            if row and row.metadata_json:
+                metadata = row.metadata_json
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+                metadata['name'] = row.name
+                return metadata
             return None
         except Exception as e:
-            print(f"Postgres Query Error: {e}")
+            print(f"PostgreSQL query error: {e}")
             return None
+
+
+def _get_metadata_sqlite(place_id: str):
+    with engine.connect() as conn:
+        try:
+            sql = text("SELECT metadata_json, name, address FROM places WHERE place_id = :place_id")
+            row = conn.execute(sql, {"place_id": place_id}).fetchone()
+            if row and row.metadata_json:
+                metadata = json.loads(row.metadata_json)
+                metadata['name'] = row.name
+                if row.address:
+                    metadata['address_display'] = row.address
+                return metadata
+            return None
+        except Exception as e:
+            print(f"SQLite query error: {e}")
+            return None
+
+
+def get_place_metadata(place_id: str):
+    if IS_POSTGRES:
+        return _get_metadata_postgres(place_id)
+    else:
+        return _get_metadata_sqlite(place_id)

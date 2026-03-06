@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "StillOpen | Operational Status Prediction",
-  description: "AI-powered business status prediction using metadata intelligence.",
+  title: "StillOpen | Open or Closed Prediction",
+  description: "Open or Closed prediction model powered by open source data.",
 };
 
 export default function RootLayout({

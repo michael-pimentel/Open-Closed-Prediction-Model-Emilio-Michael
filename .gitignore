@@ -14,7 +14,6 @@ venv/
 # *.parquet
 
 # Models
-*.pkl
 *.joblib
 *.h5
 *.pt

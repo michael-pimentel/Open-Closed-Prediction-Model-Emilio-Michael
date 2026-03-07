@@ -7,21 +7,30 @@ export interface BoundingBox {
     max_lon: number;
 }
 
-export async function geocodeCity(cityName: string): Promise<{ bbox: BoundingBox, displayName: string } | null> {
+export async function geocodeCity(cityName: string): Promise<{ bbox: BoundingBox; displayName: string; boundary: object | null } | null> {
     try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName)}&format=json&limit=1`;
+        // polygon_geojson=1 requests the city boundary polygon as GeoJSON
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName)}&format=json&limit=5&polygon_geojson=1&countrycodes=us`;
         const res = await fetch(url, { headers: { 'User-Agent': 'StillOpenCitiesMode/1.0' } });
         if (!res.ok) return null;
 
         const data = await res.json();
         if (!data || data.length === 0) return null;
 
-        const firstResult = data[0];
+        // Among boundary results, pick the one with the highest Nominatim importance score.
+        // This ensures "San Francisco" resolves to the SF city/county (high importance) rather
+        // than a county MSA or a smaller place with the same name. Falls back to first result
+        // if no boundary is found.
+        type NomResult = { class: string; importance?: number | string; boundingbox: string[]; display_name: string; geojson?: object };
+        const boundaries = (data as NomResult[]).filter(r => r.class === 'boundary');
+        boundaries.sort((a, b) => (Number(b.importance) || 0) - (Number(a.importance) || 0));
+        const firstResult = boundaries[0] ?? data[0];
         // Nominatim returns boundingbox as [SouthLat, NorthLat, WestLon, EastLon] strings
         const bboxArr = firstResult.boundingbox;
 
         return {
             displayName: firstResult.display_name,
+            boundary: firstResult.geojson || null,
             bbox: {
                 min_lat: parseFloat(bboxArr[0]),
                 max_lat: parseFloat(bboxArr[1]),

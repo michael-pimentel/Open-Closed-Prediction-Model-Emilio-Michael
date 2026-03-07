@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, GeoJSON, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
 import type { SearchResultType } from "./SearchResults";
+import type { GeoJsonObject } from "geojson";
 
 function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
     const map = useMap();
@@ -17,9 +18,11 @@ function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }
 interface CityMapProps {
     results: SearchResultType[];
     center?: [number, number];
+    boundary?: object | null;
+    darkMode?: boolean;
 }
 
-export default function CityMap({ results, center }: CityMapProps) {
+export default function CityMap({ results, center, boundary, darkMode = false }: CityMapProps) {
     const defaultCenter: [number, number] = center || [36.97, -122.03]; // Santa Cruz fallback
 
     const validResults = useMemo(() => results.filter((r) => r.lat && r.lon), [results]);
@@ -32,24 +35,56 @@ export default function CityMap({ results, center }: CityMapProps) {
 
     const mapZoom = center ? 12 : validResults.length > 0 ? 12 : 6;
 
+    // Switch tile layer based on dark mode
+    const tileUrl = darkMode
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+
+    // Derive a stable key from the boundary to force GeoJSON layer remount on city change
+    const boundaryKey = boundary
+        ? `boundary-${JSON.stringify(boundary).slice(0, 60)}`
+        : "no-boundary";
+
     return (
         <MapContainer
             center={mapCenter}
             zoom={mapZoom}
             scrollWheelZoom
             className="w-full h-full z-0"
-            style={{ background: "#f8fafb" }}
+            style={{ background: darkMode ? "#1a1a2e" : "#f8fafb" }}
         >
             <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                key={tileUrl}
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+                url={tileUrl}
             />
             <MapUpdater center={mapCenter} zoom={mapZoom} />
+
+            {/* City boundary polygon drawn as a dashed green outline */}
+            {boundary && (
+                <GeoJSON
+                    key={boundaryKey}
+                    data={boundary as GeoJsonObject}
+                    style={() => ({
+                        color: "#10b981",
+                        weight: 2.5,
+                        opacity: 0.85,
+                        fillColor: "#10b981",
+                        fillOpacity: 0.05,
+                        dashArray: "6 4",
+                    })}
+                />
+            )}
 
             {validResults.map((res, i) => {
                 const isOpen = res.status?.toLowerCase() === "open";
                 const isClosed = res.status?.toLowerCase() === "closed";
-                const color = isOpen ? "#10b981" : isClosed ? "#ef4444" : "#9ca3af";
+                // Green/black/white theme: open=emerald, closed=near-black (light) or white (dark), unknown=gray
+                const color = isOpen
+                    ? "#10b981"
+                    : isClosed
+                    ? darkMode ? "#f3f4f6" : "#111827"
+                    : "#6b7280";
 
                 return (
                     <CircleMarker
@@ -58,8 +93,8 @@ export default function CityMap({ results, center }: CityMapProps) {
                         radius={7}
                         pathOptions={{
                             fillColor: color,
-                            fillOpacity: 0.85,
-                            color: "#fff",
+                            fillOpacity: 0.9,
+                            color: darkMode ? "#374151" : "#fff",
                             weight: 2,
                         }}
                     >
@@ -68,7 +103,7 @@ export default function CityMap({ results, center }: CityMapProps) {
                                 <h3 className="font-bold text-gray-900 leading-tight text-base">
                                     {res.name || "Unknown"}
                                 </h3>
-                                <p className={`text-xs font-bold uppercase tracking-wider ${isOpen ? "text-emerald-600" : isClosed ? "text-rose-600" : "text-gray-500"}`}>
+                                <p className={`text-xs font-bold uppercase tracking-wider ${isOpen ? "text-emerald-600" : isClosed ? "text-gray-800" : "text-gray-500"}`}>
                                     {res.status} &middot; {((res.confidence ?? 0) * 100).toFixed(0)}% confidence
                                 </p>
                                 {res.address && (

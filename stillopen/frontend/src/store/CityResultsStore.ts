@@ -7,6 +7,7 @@ export interface CityAnalysisState {
     progress: number;
     results: SearchResultType[];
     error: string | null;
+    cityBoundary: object | null;
 
     // Actions
     startAnalysis: (cityName: string) => void;
@@ -14,6 +15,7 @@ export interface CityAnalysisState {
     setProgress: (progress: number) => void;
     finishAnalysis: () => void;
     setError: (error: string) => void;
+    setCityBoundary: (boundary: object | null) => void;
     reset: () => void;
 }
 
@@ -23,13 +25,15 @@ export const useCityStore = create<CityAnalysisState>((set) => ({
     progress: 0,
     results: [],
     error: null,
+    cityBoundary: null,
 
     startAnalysis: (cityName) => set({
         cityName,
         isAnalyzing: true,
         progress: 0,
         results: [],
-        error: null
+        error: null,
+        cityBoundary: null,
     }),
 
     addResults: (newResults) => set((state) => ({
@@ -42,11 +46,14 @@ export const useCityStore = create<CityAnalysisState>((set) => ({
 
     setError: (error) => set({ error, isAnalyzing: false }),
 
+    setCityBoundary: (boundary) => set({ cityBoundary: boundary }),
+
     reset: () => set({
         cityName: null,
         isAnalyzing: false,
         progress: 0,
         results: [],
-        error: null
+        error: null,
+        cityBoundary: null,
     }),
 }));

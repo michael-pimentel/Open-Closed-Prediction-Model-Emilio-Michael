@@ -4,13 +4,16 @@
   --font-sans: var(--font-inter);
 }
 
+/* Enable class-based dark mode: dark: variants apply when html has .dark class */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer utilities {
   .animate-pulse-slow {
     animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
 
-/* Custom Base Styles if needed, though usually standard classes suffice */
+/* Base body styles with dark mode support */
 body {
-  @apply bg-white text-gray-900 antialiased;
+  @apply bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased;
 }

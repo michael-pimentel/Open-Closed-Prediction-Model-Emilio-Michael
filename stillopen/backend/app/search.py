@@ -75,7 +75,9 @@ def load_data_to_db():
     """
     Seeds the database on startup.
     - PostgreSQL: No-op
-    - SQLite: Auto-seeds from parquet
+    - SQLite: Auto-seeds from parquet, extracting lat/lon from the bbox field.
+      If an old seed exists where lat/lon were not extracted (all NULL),
+      it is cleared and re-seeded automatically.
     """
     if IS_POSTGRES:
         return
@@ -83,9 +85,16 @@ def load_data_to_db():
     Base.metadata.create_all(bind=engine)
 
     with engine.connect() as conn:
-        result = conn.execute(text("SELECT COUNT(*) FROM places")).fetchone()
-        if result[0] > 0:
-            return
+        count = conn.execute(text("SELECT COUNT(*) FROM places")).fetchone()[0]
+        if count > 0:
+            # Detect old seed where coordinates were never extracted (all NULL).
+            # If any row has a non-NULL lat we consider the seed valid.
+            has_coords = conn.execute(
+                text("SELECT COUNT(*) FROM places WHERE lat IS NOT NULL")
+            ).fetchone()[0]
+            if has_coords > 0:
+                return
+            print("Detected old seed with no coordinates — re-seeding from parquet...")
 
     data_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "project_c_samples.parquet")
     data_path = os.path.normpath(data_path)
@@ -125,6 +134,23 @@ def load_data_to_db():
                     parts.append(addr['region'])
                 address_str = ', '.join(parts)
 
+        # Extract lat/lon from the parquet bbox field (xmin/xmax=lon, ymin/ymax=lat)
+        lat = None
+        lon = None
+        bbox_data = row.get('bbox')
+        if isinstance(bbox_data, dict):
+            try:
+                ymin = bbox_data.get('ymin')
+                ymax = bbox_data.get('ymax')
+                xmin = bbox_data.get('xmin')
+                xmax = bbox_data.get('xmax')
+                if ymin is not None and ymax is not None:
+                    lat = (float(ymin) + float(ymax)) / 2.0
+                if xmin is not None and xmax is not None:
+                    lon = (float(xmin) + float(xmax)) / 2.0
+            except (TypeError, ValueError):
+                pass
+
         metadata = {}
         for col in ['websites', 'socials', 'emails', 'phones', 'brand', 'addresses', 'sources', 'categories']:
             val = row.get(col)
@@ -147,14 +173,16 @@ def load_data_to_db():
             'name': name,
             'category': category,
             'address': address_str,
-            'lat': None,
-            'lon': None,
+            'lat': lat,
+            'lon': lon,
             'source': 'overture',
             'metadata_json': json.dumps(metadata, default=str),
         })
 
     with engine.begin() as conn:
+        conn.execute(text("DELETE FROM places"))
         conn.execute(insert(Place), records)
+    print(f"Seeded {len(records)} places with coordinates.")
 
 
 # =============================================================================

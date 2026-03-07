@@ -1,15 +1,32 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import SearchBar from "../components/SearchBar";
 
 export default function Home() {
+    const [isDark, setIsDark] = useState(false);
+
+    useEffect(() => {
+        const el = document.documentElement;
+        setIsDark(el.classList.contains("dark"));
+        const observer = new MutationObserver(() => {
+            setIsDark(el.classList.contains("dark"));
+        });
+        observer.observe(el, { attributes: true, attributeFilter: ["class"] });
+        return () => observer.disconnect();
+    }, []);
+
+    const headingShadow = isDark
+        ? { textShadow: "0 0 12px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.12)" }
+        : { textShadow: "0 2px 4px rgba(0,0,0,0.12)" };
+
     return (
         <div className="w-full flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-            {/* Background Gradients */}
-            <div className="absolute top-20 -left-64 w-96 h-96 bg-purple-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse-slow"></div>
-            <div className="absolute top-40 -right-64 w-96 h-96 bg-yellow-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse-slow animation-delay-2000"></div>
-            <div className="absolute -bottom-32 left-1/2 transform -translate-x-1/2 w-[500px] h-[500px] bg-emerald-100/40 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse-slow animation-delay-4000"></div>
+            {/* Background Gradients — adapted for dark mode */}
+            <div className="absolute top-20 -left-64 w-96 h-96 bg-emerald-200/30 dark:bg-emerald-900/20 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-30 animate-pulse-slow"></div>
+            <div className="absolute top-40 -right-64 w-96 h-96 bg-emerald-100/30 dark:bg-emerald-800/20 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-30 animate-pulse-slow animation-delay-2000"></div>
+            <div className="absolute -bottom-32 left-1/2 transform -translate-x-1/2 w-[500px] h-[500px] bg-emerald-100/40 dark:bg-emerald-900/25 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-30 animate-pulse-slow animation-delay-4000"></div>
 
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -18,11 +35,15 @@ export default function Home() {
                 className="w-full flex flex-col items-center space-y-16 z-10 max-w-7xl mx-auto my-auto"
             >
                 <div className="text-center space-y-6">
-                    <h1 className="text-6xl sm:text-7xl font-black tracking-tighter text-gray-900 drop-shadow-sm">
+                    <h1
+                        className="text-6xl sm:text-7xl font-black tracking-tighter text-gray-900 dark:text-white transition-colors duration-200"
+                        style={headingShadow}
+                    >
                         Still<span className="text-emerald-500">Open</span>
                     </h1>
-                    <p className="text-xl sm:text-2xl text-gray-500 font-light max-w-xl mx-auto leading-relaxed">
-                        Open or Closed prediction model powered by <span className="font-semibold text-gray-800">open source data!</span>
+                    <p className="text-xl sm:text-2xl text-gray-500 dark:text-gray-400 font-light max-w-xl mx-auto leading-relaxed">
+                        Open or Closed prediction model powered by{" "}
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">open source data!</span>
                     </p>
                 </div>
 
@@ -31,13 +52,16 @@ export default function Home() {
                 </div>
 
                 <div className="pt-8 flex gap-4 text-sm font-semibold tracking-wide">
-                    <a href="/cities" className="text-gray-500 hover:text-emerald-600 border border-gray-200 bg-white/50 backdrop-blur-sm px-6 py-2 rounded-full shadow-sm hover:shadow transition-all">
+                    <a
+                        href="/cities"
+                        className="text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm px-6 py-2 rounded-full shadow-sm hover:shadow transition-all"
+                    >
                         🗺️ Try Cities Mode
                     </a>
                 </div>
             </motion.div>
 
-            <footer className="absolute bottom-8 w-full text-center text-gray-400 text-xs font-semibold tracking-widest uppercase z-10 opacity-50 space-x-4">
+            <footer className="absolute bottom-8 w-full text-center text-gray-400 dark:text-gray-600 text-xs font-semibold tracking-widest uppercase z-10 opacity-50 space-x-4">
                 <span>StillOpen Intelligence</span>
                 <span>•</span>
                 <span>v1.0.0</span>

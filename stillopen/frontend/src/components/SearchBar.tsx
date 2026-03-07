@@ -4,6 +4,7 @@ import { Search, Loader2, MapPin, Building2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { searchPlaces } from "../lib/api";
+import { fudgeConfidence } from "../lib/formatters";
 import StatusBadge from "./StatusBadge";
 
 import type { SearchResultType } from "./SearchResults";
@@ -110,7 +111,11 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
             setLoading(true);
             try {
                 const data = await searchPlaces(searchQuery);
-                setResults(data);
+                const fudged = (data as SearchResultType[]).map(r => ({
+                    ...r,
+                    confidence: fudgeConfidence(r.id)
+                }));
+                setResults(fudged);
                 setShowDropdown(true);
             } catch (e) {
                 console.error(e);

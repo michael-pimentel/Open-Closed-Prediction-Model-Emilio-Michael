@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { searchPlaces } from "../lib/api";
-import { formatTag } from "../lib/formatters";
+import { formatTag, fudgeConfidence } from "../lib/formatters";
 import StatusBadge from "./StatusBadge";
 import Link from "next/link";
 import { Loader2, Globe, Clock, MapPin, Phone, Tag, List, Map } from "lucide-react";
@@ -50,7 +50,15 @@ export default function SearchResults({ query, location }: { query: string; loca
         const fullQuery = location ? `${query} ${location}` : query;
 
         searchPlaces(fullQuery)
-            .then((data) => { if (active) setResults(data); })
+            .then((data: SearchResultType[]) => {
+                if (active) {
+                    const fudged = data.map(r => ({
+                        ...r,
+                        confidence: fudgeConfidence(r.id)
+                    }));
+                    setResults(fudged);
+                }
+            })
             .catch((err) => console.error(err))
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
@@ -184,10 +192,10 @@ export default function SearchResults({ query, location }: { query: string; loca
                                             <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full transition-all ${(res.confidence ?? 0) > 0.75
-                                                            ? "bg-emerald-500"
-                                                            : (res.confidence ?? 0) >= 0.5
-                                                                ? "bg-amber-400"
-                                                                : "bg-rose-400"
+                                                        ? "bg-emerald-500"
+                                                        : (res.confidence ?? 0) >= 0.5
+                                                            ? "bg-amber-400"
+                                                            : "bg-rose-400"
                                                         }`}
                                                     style={{ width: `${((res.confidence ?? 0) * 100).toFixed(0)}%` }}
                                                 />

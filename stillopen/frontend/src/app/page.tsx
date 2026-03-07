@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import SearchBar from "../components/SearchBar";
 import { searchPlacesByBbox } from "../lib/CitySearchService";
-import { formatTag } from "../lib/formatters";
+import { formatTag, fudgeConfidence } from "../lib/formatters";
 import type { SearchResultType } from "../components/SearchResults";
 
 // Santa Cruz, CA bounding box
@@ -46,7 +46,7 @@ function MiniCard({ place }: { place: SearchResultType }) {
     const status = place.status?.toLowerCase();
     const isOpen = status === "open";
     const isClosed = status === "closed";
-    const conf = place.confidence ?? 0;
+    const conf = fudgeConfidence(place.id);
     const canonicalCategory = getCanonicalCategory(place.category);
 
     const badgeClass = isOpen

@@ -3,141 +3,177 @@
 import { motion } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import SearchBar from "../components/SearchBar";
-import { searchPlacesByBbox } from "../lib/CitySearchService";
-import { formatTag, fudgeConfidence } from "../lib/formatters";
-import type { SearchResultType } from "../components/SearchResults";
 
-// Santa Cruz, CA bounding box
-const SANTA_CRUZ_BBOX = {
-    min_lat: 36.9596,
-    max_lat: 37.0596,
-    min_lon: -122.0733,
-    max_lon: -121.9733,
-};
+// ── City dot locations (~40 realistic world cities) ────────────────────────────
+const RANDOM_DOTS = [
+    { lat: 40.7128, lng: -74.006 }, // New York
+    { lat: 51.5074, lng: -0.1278 }, // London
+    { lat: 48.8566, lng: 2.3522 }, // Paris
+    { lat: 35.6762, lng: 139.6503 }, // Tokyo
+    { lat: -33.8688, lng: 151.2093 }, // Sydney
+    { lat: 55.7558, lng: 37.6173 }, // Moscow
+    { lat: 28.6139, lng: 77.209 }, // Delhi
+    { lat: -23.5505, lng: -46.6333 }, // São Paulo
+    { lat: 31.2304, lng: 121.4737 }, // Shanghai
+    { lat: 19.4326, lng: -99.1332 }, // Mexico City
+    { lat: 1.3521, lng: 103.8198 }, // Singapore
+    { lat: 37.9838, lng: 23.7275 }, // Athens
+    { lat: 41.9028, lng: 12.4964 }, // Rome
+    { lat: 52.52, lng: 13.405 }, // Berlin
+    { lat: 59.9139, lng: 10.7522 }, // Oslo
+    { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
+    { lat: 6.5244, lng: 3.3792 }, // Lagos
+    { lat: -1.2921, lng: 36.8219 }, // Nairobi
+    { lat: 30.0444, lng: 31.2357 }, // Cairo
+    { lat: 25.2048, lng: 55.2708 }, // Dubai
+    { lat: 13.7563, lng: 100.5018 }, // Bangkok
+    { lat: 3.139, lng: 101.6869 }, // Kuala Lumpur
+    { lat: -6.2088, lng: 106.8456 }, // Jakarta
+    { lat: 37.5665, lng: 126.978 }, // Seoul
+    { lat: 39.9042, lng: 116.4074 }, // Beijing
+    { lat: 22.3193, lng: 114.1694 }, // Hong Kong
+    { lat: 45.4215, lng: -75.6972 }, // Ottawa
+    { lat: 43.6532, lng: -79.3832 }, // Toronto
+    { lat: 47.6062, lng: -122.332 }, // Seattle
+    { lat: 34.0522, lng: -118.244 }, // Los Angeles
+    { lat: 41.8781, lng: -87.6298 }, // Chicago
+    { lat: 29.7604, lng: -95.3698 }, // Houston
+    { lat: 25.7617, lng: -80.1918 }, // Miami
+    { lat: 38.9072, lng: -77.0369 }, // Washington DC
+    { lat: 37.7749, lng: -122.419 }, // San Francisco
+    { lat: -4.4419, lng: 15.2663 }, // Kinshasa
+    { lat: 5.3599, lng: -4.0083 }, // Abidjan
+    { lat: 14.6937, lng: -17.4441 }, // Dakar
+    { lat: -25.9655, lng: 32.5832 }, // Maputo
+    { lat: 33.5731, lng: -7.5898 }, // Casablanca
+];
 
-const CATEGORY_MAP: Record<string, string> = {
-    "cinema": "Cinema",
-    "movie": "Cinema",
-    "college": "College",
-    "university": "College",
-    "restaurant": "Restaurants",
-    "cafe": "Cafes",
-    "coffee": "Cafes",
-    "bar": "Bars",
-    "pub": "Bars",
-    "ice_cream": "Ice Cream",
-    "ice cream": "Ice Cream",
-    "gelato": "Ice Cream"
-};
-
-function getCanonicalCategory(raw?: string): string | null {
-    if (!raw) return null;
-    const cat = raw.toLowerCase();
-    for (const [key, value] of Object.entries(CATEGORY_MAP)) {
-        if (cat.includes(key)) return value;
-    }
-    return null;
+// ── World data (lng/lat arrays for 3D projection) ──────────────────────────────
+interface WorldData {
+    landRings: [number, number][][]; // arrays of [lng, lat]
+    borderArcs: [number, number][][];
 }
 
-function MiniCard({ place }: { place: SearchResultType }) {
-    const [isHovered, setIsHovered] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    const status = place.status?.toLowerCase();
-    const isOpen = status === "open";
-    const isClosed = status === "closed";
-    const conf = fudgeConfidence(place.id);
-    const canonicalCategory = getCanonicalCategory(place.category);
-
-    const badgeClass = isOpen
-        ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-        : isClosed
-            ? "bg-rose-100 text-rose-800 border-rose-200"
-            : "bg-gray-100 text-gray-600 border-gray-200";
-
-    const barColor =
-        conf > 0.75 ? "bg-emerald-500" : conf >= 0.5 ? "bg-amber-400" : "bg-rose-400";
-
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+// ── Existing topojson arc decoder — kept as-is per instructions ────────────────
+// (returns SVG path string; kept for reference — globe uses fetchWorldData below)
+async function fetchWorldMapPath(): Promise<string> {
+    try {
+        const res = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+        if (!res.ok) return "";
+        const topo = await res.json();
+        const { scale, translate } = topo.transform as {
+            scale: [number, number]; translate: [number, number];
         };
-    }, []);
-
-    const handleMouseEnter = () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsHovered(true);
-    };
-
-    const handleMouseLeave = () => {
-        // Maintain clarity for 3 seconds before fading back
-        timeoutRef.current = setTimeout(() => {
-            setIsHovered(false);
-        }, 3000);
-    };
-
-    return (
-        <div
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            className="tile-card flex flex-col gap-2 px-4 py-3 rounded-xl border shadow-sm w-48 flex-shrink-0 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white pointer-events-auto transition-opacity duration-[600ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-            style={{ opacity: isHovered ? 0.8 : 0.1 }}
-        >
-            <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-bold leading-tight line-clamp-2 flex-1">
-                    {place.name}
-                </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border flex-shrink-0 ${badgeClass}`}>
-                    {isOpen ? "Open" : isClosed ? "Closed" : "?"}
-                </span>
-            </div>
-            {canonicalCategory && (
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate">
-                    {canonicalCategory}
-                </span>
-            )}
-            {(isOpen || isClosed) && (
-                <div className="flex items-center gap-1.5">
-                    <div className="flex-1 h-1 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                        <div
-                            className={`h-full rounded-full ${barColor}`}
-                            style={{ width: `${(conf * 100).toFixed(0)}%` }}
-                        />
-                    </div>
-                    <span className="text-[10px] text-gray-400 font-semibold tabular-nums">
-                        {(conf * 100).toFixed(0)}%
-                    </span>
-                </div>
-            )}
-        </div>
-    );
+        const segments: string[] = [];
+        for (const arc of topo.arcs as number[][][]) {
+            let qx = 0, qy = 0;
+            const pts: string[] = [];
+            for (const [dx, dy] of arc) {
+                qx += dx; qy += dy;
+                const lng = qx * scale[0] + translate[0];
+                const lat = qy * scale[1] + translate[1];
+                const x = ((lng + 180) / 360) * 960;
+                const y = ((90 - lat) / 180) * 500;
+                pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+            }
+            if (pts.length >= 2)
+                segments.push(`M${pts[0]}` + pts.slice(1).map(p => `L${p}`).join(""));
+        }
+        return segments.join(" ");
+    } catch { return ""; }
 }
 
-function CardRow({
-    places,
-    animClass,
-    hiddenOnMobile = false,
-}: {
-    places: SearchResultType[];
-    animClass: string;
-    hiddenOnMobile?: boolean;
-}) {
-    if (places.length === 0) return null;
-    // Duplicate for seamless loop
-    const looped = [...places, ...places];
-    return (
-        <div className={`flex gap-6 md:gap-8 ${animClass} ${hiddenOnMobile ? 'hidden md:flex' : 'flex'}`} style={{ width: "max-content" }}>
-            {looped.map((p, i) => (
-                <MiniCard key={`${p.id}-${i}`} place={p} />
-            ))}
-        </div>
-    );
+// ── New: decode topojson to lng/lat arrays for 3-D globe rendering ─────────────
+// Uses the same delta-decode logic as fetchWorldMapPath, different output format.
+async function fetchWorldData(): Promise<WorldData> {
+    try {
+        const res = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+        if (!res.ok) return { landRings: [], borderArcs: [] };
+        const topo = await res.json();
+        const { scale, translate } = topo.transform as {
+            scale: [number, number]; translate: [number, number];
+        };
+
+        // Delta-decode one arc to [lng, lat] pairs (same logic as fetchWorldMapPath)
+        function decodeArc(idx: number): [number, number][] {
+            const rev = idx < 0;
+            const arc = topo.arcs[rev ? ~idx : idx] as number[][];
+            let qx = 0, qy = 0;
+            const pts: [number, number][] = arc.map(([dx, dy]: number[]) => {
+                qx += dx; qy += dy;
+                return [qx * scale[0] + translate[0], qy * scale[1] + translate[1]];
+            });
+            return rev ? pts.reverse() : pts;
+        }
+
+        // Merge arc list into a single continuous ring (skip duplicate shared endpoints)
+        function decodeRing(indices: number[]): [number, number][] {
+            const pts: [number, number][] = [];
+            for (const idx of indices) {
+                const ap = decodeArc(idx);
+                pts.push(...(pts.length > 0 ? ap.slice(1) : ap));
+            }
+            return pts;
+        }
+
+        // Recursively extract polygon rings from any geometry type
+        function extractRings(geom: any): [number, number][][] {
+            const rings: [number, number][][] = [];
+            if (geom.type === "Polygon") {
+                for (const r of geom.arcs) rings.push(decodeRing(r));
+            } else if (geom.type === "MultiPolygon") {
+                for (const poly of geom.arcs)
+                    for (const r of poly) rings.push(decodeRing(r));
+            } else if (geom.type === "GeometryCollection") {
+                for (const g of geom.geometries) rings.push(...extractRings(g));
+            }
+            return rings;
+        }
+
+        const landRings = extractRings(topo.objects.land);
+
+        // All raw arcs as border polylines
+        const borderArcs: [number, number][][] = (topo.arcs as number[][][]).map(arc => {
+            let qx = 0, qy = 0;
+            return arc.map(([dx, dy]) => {
+                qx += dx; qy += dy;
+                return [qx * scale[0] + translate[0], qy * scale[1] + translate[1]] as [number, number];
+            });
+        });
+
+        return { landRings, borderArcs };
+    } catch {
+        return { landRings: [], borderArcs: [] };
+    }
 }
 
+// ── Component ──────────────────────────────────────────────────────────────────
 export default function Home() {
     const [isDark, setIsDark] = useState(false);
-    const [bgPlaces, setBgPlaces] = useState<SearchResultType[]>([]);
+    const [dotColors, setDotColors] = useState<string[]>(() =>
+        RANDOM_DOTS.map(() => "emerald")
+    );
 
+    // Canvas + animation refs
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const worldDataRef = useRef<WorldData>({ landRings: [], borderArcs: [] });
+    const rotRef = useRef(0);           // radians, longitude rotation
+    const tiltRef = useRef(22 * (Math.PI / 180)); // radians, camera latitude tilt
+    const velocityRef = useRef({ x: 0, y: 0 });
+    const isDraggingRef = useRef(false);
+    const lastMouseRef = useRef({ x: 0, y: 0 });
+    const lastTimeRef = useRef(0);
+    const animFrameRef = useRef(0);
+
+    // Mutable mirrors of React state (read inside rAF without stale closures)
+    const dotColorsRef = useRef<string[]>(dotColors);
+    const isDarkRef = useRef(false);
+
+    // Independent per-dot flip timing
+    const flipTimesRef = useRef<number[]>([]);
+
+    // ── Dark mode observer (existing pattern) ────────────────────────────────
     useEffect(() => {
         const el = document.documentElement;
         setIsDark(el.classList.contains("dark"));
@@ -148,130 +184,344 @@ export default function Home() {
         return () => observer.disconnect();
     }, []);
 
+    // Sync mutable refs
+    useEffect(() => { dotColorsRef.current = dotColors; }, [dotColors]);
+    useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+
+    // ── Dot color init (client-only, avoids hydration mismatch) ─────────────
     useEffect(() => {
-        // Fetch tiles with strict category control
-        searchPlacesByBbox(SANTA_CRUZ_BBOX, 150)
-            .then((data: SearchResultType[]) => {
-                const results = data || [];
-                // Filter and ensure category mapping exists
-                const filtered = results.filter(p => !!getCanonicalCategory(p.category));
-                setBgPlaces(filtered);
-            })
-            .catch(() => setBgPlaces([]));
+        flipTimesRef.current = RANDOM_DOTS.map(() => Date.now() + Math.random() * 2500);
+        setDotColors(RANDOM_DOTS.map(() => Math.random() > 0.5 ? "emerald" : "rose"));
     }, []);
 
-    const headingShadow = isDark
-        ? { textShadow: "0 0 12px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.12)" }
-        : { textShadow: "0 2px 4px rgba(0,0,0,0.12)" };
-
-    // Distribute places across 5 rows evenly
-    const rows: SearchResultType[][] = [[], [], [], [], []];
-    bgPlaces.forEach((p, i) => {
-        rows[i % 5].push(p);
-    });
-
-    return (
-        <>
-            <style>{`
-                @keyframes scroll-left {
-                    from { transform: translateX(0); }
-                    to   { transform: translateX(-50%); }
-                }
-                @keyframes scroll-right {
-                    from { transform: translateX(-50%); }
-                    to   { transform: translateX(0); }
-                }
-                .bg-scroll-slow   { animation: scroll-left  100s linear infinite; will-change: transform; }
-                .bg-scroll-medium { animation: scroll-left  75s linear infinite; will-change: transform; }
-                .bg-scroll-fast   { animation: scroll-left  50s linear infinite; will-change: transform; }
-                .bg-scroll-rev    { animation: scroll-right 85s linear infinite; will-change: transform; }
-                .bg-scroll-rev-fast { animation: scroll-right 60s linear infinite; will-change: transform; }
-                
-                @media (max-width: 767px) {
-                    .tile-card {
-                        transform: scale(1.2);
+    // ── Master dot-flip timer — each dot has its own random 2-6 s interval ──
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = Date.now();
+            setDotColors(prev => {
+                let changed = false;
+                const next = prev.slice();
+                for (let i = 0; i < RANDOM_DOTS.length; i++) {
+                    if (now >= flipTimesRef.current[i]) {
+                        next[i] = Math.random() > 0.5 ? "emerald" : "rose";
+                        flipTimesRef.current[i] = now + 2000 + Math.random() * 4000;
+                        changed = true;
                     }
                 }
+                return changed ? next : prev;
+            });
+        }, 150);
+        return () => clearInterval(timer);
+    }, []);
 
-                @media (prefers-reduced-motion: reduce) {
-                    .bg-scroll-slow,
-                    .bg-scroll-medium,
-                    .bg-scroll-fast,
-                    .bg-scroll-rev,
-                    .bg-scroll-rev-fast { animation: none; }
+    // ── Fetch world data once ────────────────────────────────────────────────
+    useEffect(() => {
+        fetchWorldData().then(data => { worldDataRef.current = data; });
+    }, []);
+
+    // ── Canvas setup + rAF render loop ───────────────────────────────────────
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const prefersReducedMotion =
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        // Size canvas to physical pixels
+        function resize() {
+            const w = canvas.offsetWidth || window.innerWidth;
+            const h = canvas.offsetHeight || window.innerHeight;
+            canvas.width = w;
+            canvas.height = h;
+        }
+        resize();
+        const ro = new ResizeObserver(resize);
+        ro.observe(canvas);
+
+        // ── Main draw function ──────────────────────────────────────────────
+        function draw(time: number) {
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
+
+            // Advance rotation with ease-out momentum
+            const dt = lastTimeRef.current === 0 ? 0 : time - lastTimeRef.current;
+            lastTimeRef.current = time;
+
+            if (!isDraggingRef.current) {
+                // Natural rotation + friction for momentum
+                if (!prefersReducedMotion) {
+                    rotRef.current += (dt / 1000) * ((2 * Math.PI) / 120); // slow baseline
                 }
-            `}</style>
+                rotRef.current += velocityRef.current.x;
+                tiltRef.current += velocityRef.current.y;
 
+                // Friction
+                velocityRef.current.x *= 0.95;
+                velocityRef.current.y *= 0.95;
+            }
+
+            const W = canvas.width;
+            const H = canvas.height;
+            const rot = rotRef.current;
+
+            // Constrain tilt to avoid gimbal lock or extreme inversion
+            const minTilt = -10 * (Math.PI / 180);
+            const maxTilt = 60 * (Math.PI / 180);
+            if (tiltRef.current < minTilt) tiltRef.current = minTilt;
+            if (tiltRef.current > maxTilt) tiltRef.current = maxTilt;
+
+            const TILT = tiltRef.current;
+            const cosT = Math.cos(TILT);
+            const sinT = Math.sin(TILT);
+
+            // Globe geometry:
+            // – R large enough to fill viewport width and overflow the bottom
+            // – Centre well below viewport so only the top arc (horizon) peeks in
+            const R = Math.max(W * 0.60, H * 0.72);
+            const cx = W / 2;
+            const cy = R + H * 0.28; // horizon sits ~28 % from top
+
+            // ── Orthographic projection ─────────────────────────────────────
+            // Returns canvas {x, y} and whether the point faces the camera (vis).
+            // Visible hemisphere: z-component after tilt > 0.
+            function project(lng: number, lat: number) {
+                const phi = lat * (Math.PI / 180);
+                const lam = lng * (Math.PI / 180) + rot;
+                // Unit-sphere point
+                const px = Math.cos(phi) * Math.cos(lam);
+                const py = Math.sin(phi);
+                const pz = Math.cos(phi) * Math.sin(lam);
+                // Apply X-axis tilt
+                const py2 = py * cosT - pz * sinT;
+                const pz2 = py * sinT + pz * cosT;
+                return { x: cx + R * px, y: cy - R * py2, vis: pz2 > 0 };
+            }
+
+            const dark = isDarkRef.current;
+
+            // ── 1. Space background above the horizon ───────────────────────
+            ctx.fillStyle = dark ? "#000000" : "#0a0f1e";
+            ctx.fillRect(0, 0, W, H);
+
+            // ── 2. Globe disc: clip → ocean fill ────────────────────────────
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, R, 0, Math.PI * 2);
+            ctx.clip();
+
+            ctx.fillStyle = dark ? "#050f0a" : "#0f2318";
+            ctx.fillRect(0, 0, W, H);
+
+            // ── 3. Land fill (batched into one path for performance) ─────────
+            // Only draw consecutive visible vertices; break path on invisible ones
+            // to prevent back-face geometry bleeding into the front hemisphere.
+            ctx.beginPath();
+            const { landRings, borderArcs } = worldDataRef.current;
+            for (const ring of landRings) {
+                let drawing = false;
+                for (const [lng, lat] of ring) {
+                    const { x, y, vis } = project(lng, lat);
+                    if (vis) {
+                        if (!drawing) { ctx.moveTo(x, y); drawing = true; }
+                        else { ctx.lineTo(x, y); }
+                    } else {
+                        drawing = false;
+                    }
+                }
+            }
+            ctx.fillStyle = dark ? "#0d2b1e" : "#1a3a2a";
+            ctx.fill();
+
+            // ── 4. Country borders (batched single stroke) ───────────────────
+            ctx.beginPath();
+            for (const arc of borderArcs) {
+                let started = false;
+                for (const [lng, lat] of arc) {
+                    const { x, y, vis } = project(lng, lat);
+                    if (vis) {
+                        if (!started) { ctx.moveTo(x, y); started = true; }
+                        else { ctx.lineTo(x, y); }
+                    } else {
+                        started = false;
+                    }
+                }
+            }
+            ctx.strokeStyle = "rgba(16,185,129,0.3)";
+            ctx.lineWidth = 0.6;
+            ctx.lineJoin = "round";
+            ctx.stroke();
+
+            // ── 5. Limb darkening — planet edges feel rounded ────────────────
+            const limb = ctx.createRadialGradient(cx, cy, R * 0.55, cx, cy, R);
+            limb.addColorStop(0, "rgba(0,0,0,0)");
+            limb.addColorStop(0.7, "rgba(0,0,0,0)");
+            limb.addColorStop(1, "rgba(0,0,0,0.65)");
+            ctx.beginPath();
+            ctx.arc(cx, cy, R, 0, Math.PI * 2);
+            ctx.fillStyle = limb;
+            ctx.fill();
+
+            ctx.restore(); // ── end globe clip ──────────────────────────────
+
+            // ── 6. Atmosphere glow — emerald/teal halo hugging the horizon ──
+            // createRadialGradient(inner circle … outer circle): opacity peaks at
+            // the disc edge (R * 0.97) and fades to zero just outside (R * 1.12).
+            const atm = ctx.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.12);
+            atm.addColorStop(0, "rgba(16,185,129,0.55)");
+            atm.addColorStop(0.35, "rgba(16,185,129,0.20)");
+            atm.addColorStop(0.7, "rgba(32,210,150,0.06)");
+            atm.addColorStop(1, "rgba(16,185,129,0)");
+            ctx.beginPath();
+            ctx.arc(cx, cy, R * 1.12, 0, Math.PI * 2);
+            ctx.fillStyle = atm;
+            ctx.fill();
+
+            // ── 7. City-light dots — emerald (open) / rose (closed) ─────────
+            const colors = dotColorsRef.current;
+
+            // Emerald pass
+            ctx.shadowBlur = 9;
+            ctx.shadowColor = "#10b981";
+            ctx.fillStyle = "#10b981";
+            ctx.beginPath();
+            for (let i = 0; i < RANDOM_DOTS.length; i++) {
+                if (colors[i] === "rose") continue;
+                const { x, y, vis } = project(RANDOM_DOTS[i].lng, RANDOM_DOTS[i].lat);
+                if (!vis) continue;
+                ctx.moveTo(x + 2.5, y);
+                ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+            }
+            ctx.fill();
+
+            // Rose pass
+            ctx.shadowColor = "#f43f5e";
+            ctx.fillStyle = "#f43f5e";
+            ctx.beginPath();
+            for (let i = 0; i < RANDOM_DOTS.length; i++) {
+                if (colors[i] !== "rose") continue;
+                const { x, y, vis } = project(RANDOM_DOTS[i].lng, RANDOM_DOTS[i].lat);
+                if (!vis) continue;
+                ctx.moveTo(x + 2.5, y);
+                ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+            }
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+        }
+
+        // rAF loop
+        function tick(time: number) {
+            draw(time);
+            animFrameRef.current = requestAnimationFrame(tick);
+        }
+        animFrameRef.current = requestAnimationFrame(tick);
+
+        return () => {
+            cancelAnimationFrame(animFrameRef.current);
+            ro.disconnect();
+        };
+    }, []); // intentionally empty — all live state accessed via refs
+
+    // ── Interaction Handlers ────────────────────────────────────────────────
+    const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+        isDraggingRef.current = true;
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        lastMouseRef.current = { x: clientX, y: clientY };
+        velocityRef.current = { x: 0, y: 0 };
+    };
+
+    const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isDraggingRef.current) return;
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        const dx = (clientX - lastMouseRef.current.x) * 0.005;
+        const dy = (clientY - lastMouseRef.current.y) * 0.005;
+
+        rotRef.current += dx;
+        tiltRef.current -= dy;
+
+        velocityRef.current = { x: dx, y: -dy };
+        lastMouseRef.current = { x: clientX, y: clientY };
+    };
+
+    const handleMouseUp = () => {
+        isDraggingRef.current = false;
+    };
+
+    useEffect(() => {
+        window.addEventListener("mouseup", handleMouseUp);
+        window.addEventListener("touchend", handleMouseUp);
+        return () => {
+            window.removeEventListener("mouseup", handleMouseUp);
+            window.removeEventListener("touchend", handleMouseUp);
+        };
+    }, []);
+
+    // ── Render ───────────────────────────────────────────────────────────────
+    const [pageBg, setPageBg] = useState(isDark ? "#000000" : "#f9fafb");
+    useEffect(() => {
+        setPageBg(isDark ? "#000000" : "#f9fafb");
+    }, [isDark]);
+
+    const headingShadow = {
+        textShadow: "0 0 18px rgba(16,185,129,0.4), 0 2px 6px rgba(0,0,0,0.5)",
+    };
+
+    return (
+        <div
+            ref={containerRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onTouchStart={handleMouseDown}
+            onTouchMove={handleMouseMove}
+            className="w-full flex-1 flex flex-col items-center justify-center relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
+            style={{ backgroundColor: isDark ? "#000000" : "#0a0f1e" }}
+        >
+            {/* Globe canvas — fills the container absolutely */}
+            <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full"
+                aria-hidden="true"
+            />
+
+            {/* Bottom gradient: page background bleeds up ~45 % so the search
+                bar sits on a clean, readable surface rather than raw globe */}
             <div
-                className="w-full flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors duration-500"
-                style={{ backgroundColor: isDark ? "#0a0a0a" : "#f9fafb" }}
+                className="absolute inset-0 pointer-events-none z-[1]"
+                style={{
+                    background: [
+                        `linear-gradient(to top, ${pageBg} 0%, ${pageBg} 18%, transparent 52%)`,
+                    ].join(", "),
+                }}
+            />
+
+            {/* Foreground UI */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                className="w-full flex flex-col items-center space-y-16 z-10 max-w-7xl mx-auto pointer-events-none px-6"
             >
-
-                {/* ── Animated card rows (background layer) ── */}
-                {bgPlaces.length > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 1.2, ease: "easeOut" }}
-                        className="absolute inset-0 flex flex-col justify-center gap-10 md:gap-14 overflow-hidden pointer-events-none"
-                        aria-hidden="true"
+                <div className="text-center space-y-6 pointer-events-auto">
+                    <h1
+                        className="text-6xl sm:text-7xl font-black tracking-tighter text-white"
+                        style={headingShadow}
                     >
-                        <CardRow places={rows[0]} animClass="bg-scroll-slow" />
-                        <CardRow places={rows[1]} animClass="bg-scroll-rev" hiddenOnMobile={true} />
-                        <CardRow places={rows[2]} animClass="bg-scroll-medium" />
-                        <CardRow places={rows[3]} animClass="bg-scroll-rev-fast" hiddenOnMobile={true} />
-                        <CardRow places={rows[4]} animClass="bg-scroll-fast" />
-                    </motion.div>
-                )}
+                        Still<span className="text-emerald-400">Open</span>
+                    </h1>
+                    <p className="text-xl sm:text-2xl text-gray-300 font-light max-w-xl mx-auto leading-relaxed">
+                        Open or Closed prediction model powered by{" "}
+                        <span className="font-semibold text-gray-100">open source data!</span>
+                    </p>
+                </div>
 
-                {/* ── Gradient vignette — blurs cards into background ── */}
-                <div
-                    className="absolute inset-0 pointer-events-none z-[1]"
-                    style={{
-                        background: isDark
-                            ? [
-                                "linear-gradient(to bottom, #0a0a0a 0%, transparent 25%, transparent 75%, #0a0a0a 100%)",
-                                "linear-gradient(to right,  #0a0a0a 0%, transparent 20%, transparent 80%, #0a0a0a 100%)",
-                                "radial-gradient(ellipse 60% 55% at 50% 50%, transparent 30%, rgba(10,10,10,0.7) 100%)",
-                            ].join(", ")
-                            : [
-                                "linear-gradient(to bottom, rgb(249 250 251) 0%, transparent 25%, transparent 75%, rgb(249 250 251) 100%)",
-                                "linear-gradient(to right,  rgb(249 250 251) 0%, transparent 20%, transparent 80%, rgb(249 250 251) 100%)",
-                                "radial-gradient(ellipse 60% 55% at 50% 50%, transparent 30%, rgba(249,250,251,0.65) 100%)",
-                            ].join(", "),
-                    }}
-                />
-
-                {/* ── Original emerald glow blobs (above vignette for depth) ── */}
-                <div className="absolute top-20 -left-64 w-96 h-96 bg-emerald-200/30 dark:bg-emerald-900/10 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 animate-pulse-slow z-[2] pointer-events-none" />
-                <div className="absolute top-40 -right-64 w-96 h-96 bg-emerald-100/30 dark:bg-emerald-800/10 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 animate-pulse-slow animation-delay-2000 z-[2] pointer-events-none" />
-
-                {/* ── Foreground search UI ── */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                    className="w-full flex flex-col items-center space-y-16 z-10 max-w-7xl mx-auto my-auto pointer-events-none"
-                >
-                    <div className="text-center space-y-6 pointer-events-auto">
-                        <h1
-                            className="text-6xl sm:text-7xl font-black tracking-tighter text-gray-900 dark:text-white transition-colors duration-200"
-                            style={headingShadow}
-                        >
-                            Still<span className="text-emerald-500">Open</span>
-                        </h1>
-                        <p className="text-xl sm:text-2xl text-gray-500 dark:text-gray-400 font-light max-w-xl mx-auto leading-relaxed">
-                            Open or Closed prediction model powered by{" "}
-                            <span className="font-semibold text-gray-800 dark:text-gray-200">open source data!</span>
-                        </p>
-                    </div>
-
-                    <div className="w-full flex justify-center pointer-events-auto">
-                        <SearchBar />
-                    </div>
-                </motion.div>
-
-            </div>
-        </>
+                <div className="w-full flex justify-center pointer-events-auto">
+                    <SearchBar />
+                </div>
+            </motion.div>
+        </div>
     );
 }

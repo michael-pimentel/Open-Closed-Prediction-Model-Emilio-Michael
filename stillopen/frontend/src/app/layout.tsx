@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   description: "Open or Closed prediction model powered by open source data.",
 };
 
+import { AppProvider } from "../lib/AppContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -22,11 +24,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col min-h-screen`}>
-        <Navbar />
-        <main className="flex-1 flex flex-col items-center">
-          {children}
-        </main>
-        <Footer />
+        <AppProvider>
+          <Navbar />
+          <main className="flex-1 flex flex-col items-center">
+            {children}
+          </main>
+          <Footer />
+        </AppProvider>
       </body>
     </html>
   );

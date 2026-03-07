@@ -5,6 +5,7 @@ import { formatTag, fudgeConfidence } from "../lib/formatters";
 import StatusBadge from "./StatusBadge";
 import Link from "next/link";
 import { Loader2, Globe, Clock, MapPin, Phone, Tag, List, Map } from "lucide-react";
+import { useAppContext } from "../lib/AppContext";
 import dynamic from "next/dynamic";
 
 const ResultsMap = dynamic(() => import("./ResultsMap"), {
@@ -125,10 +126,12 @@ export default function SearchResults({ query, location }: { query: string; loca
                                 <div className="flex flex-col flex-1 min-w-0 p-5 min-h-[140px]">
                                     {/* Name + status */}
                                     <div className="flex justify-between items-start gap-2">
-                                        <h2 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight">
-                                            {res.name || "Unknown Place"}
-                                        </h2>
-                                        <div className="flex-shrink-0">
+                                        <div className="flex-1 min-w-0">
+                                            <h2 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight truncate">
+                                                {res.name || "Unknown Place"}
+                                            </h2>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
                                             <StatusBadge status={res.status} />
                                         </div>
                                     </div>

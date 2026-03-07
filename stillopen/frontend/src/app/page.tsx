@@ -56,16 +56,11 @@ export default function Home() {
                         href="/cities"
                         className="text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm px-6 py-2 rounded-full shadow-sm hover:shadow transition-all"
                     >
-                        🗺️ Try Cities Mode
+                        Cities Mode
                     </a>
                 </div>
             </motion.div>
 
-            <footer className="absolute bottom-8 w-full text-center text-gray-400 dark:text-gray-600 text-xs font-semibold tracking-widest uppercase z-10 opacity-50 space-x-4">
-                <span>StillOpen Intelligence</span>
-                <span>•</span>
-                <span>v1.0.0</span>
-            </footer>
         </div>
     );
 }

@@ -3,7 +3,6 @@ from typing import List, Optional
 from sqlalchemy import Column, Integer, String, Float, Text, DateTime, BigInteger
 from sqlalchemy.sql import func
 from .database import Base, IS_POSTGRES
-from geoalchemy2 import Geometry
 
 # --- Pydantic API Schemas ---
 class PlacePredictRequest(BaseModel):

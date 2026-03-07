@@ -171,27 +171,46 @@ def _search_postgres(
     max_lon: float = None,
 ):
     has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
-    if not has_bbox and (not query or len(query.strip()) < 2):
+    has_query = query and len(query.strip()) >= 2
+    if not has_bbox and not has_query:
         return []
 
     with engine.connect() as conn:
         try:
-            bbox_sql = ""
             params = {
-                "ilike_query": f"%{query}%",
-                "query_str": query,
                 "limit": limit,
                 "offset": offset,
             }
 
+            # Build WHERE clauses
+            where_parts = []
+
+            if has_query:
+                where_parts.append(
+                    "(name ILIKE :ilike_query OR similarity(name, :query_str) > 0.15)"
+                )
+                params["ilike_query"] = f"%{query}%"
+                params["query_str"] = query
+
             if has_bbox:
-                bbox_sql = "AND geom && ST_MakeEnvelope(:min_lon, :min_lat, :max_lon, :max_lat, 4326)"
+                where_parts.append(
+                    "geom && ST_MakeEnvelope(:min_lon, :min_lat, :max_lon, :max_lat, 4326)"
+                )
                 params.update({
                     "min_lon": min_lon,
                     "min_lat": min_lat,
                     "max_lon": max_lon,
                     "max_lat": max_lat,
                 })
+
+            where_clause = " AND ".join(where_parts) if where_parts else "TRUE"
+
+            # Use name similarity for ordering when a text query is present,
+            # otherwise fall back to name alphabetical.
+            if has_query:
+                order_clause = "similarity(name, :query_str) DESC"
+            else:
+                order_clause = "name"
 
             sql = text(f"""
                 SELECT
@@ -201,13 +220,10 @@ def _search_postgres(
                     source,
                     ST_X(geom::geometry) AS lon,
                     ST_Y(geom::geometry) AS lat,
-                    metadata_json,
-                    similarity(name, :query_str) AS name_sim
+                    metadata_json
                 FROM places
-                WHERE
-                    (name ILIKE :ilike_query OR similarity(name, :query_str) > 0.15)
-                    {bbox_sql}
-                ORDER BY name_sim DESC
+                WHERE {where_clause}
+                ORDER BY {order_clause}
                 LIMIT :limit OFFSET :offset;
             """)
 
@@ -223,28 +239,62 @@ def _search_postgres(
 # SQLITE SEARCH
 # =============================================================================
 
-def _search_sqlite(query: str, limit: int):
+def _search_sqlite(
+    query: str,
+    limit: int = 20,
+    offset: int = 0,
+    min_lat: float = None,
+    max_lat: float = None,
+    min_lon: float = None,
+    max_lon: float = None,
+):
+    has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
+    has_query = query and len(query.strip()) >= 2
+    if not has_bbox and not has_query:
+        return []
+
     with engine.connect() as conn:
         try:
-            sql = text("""
-                SELECT place_id, name, address, lat, lon, metadata_json
-                FROM places 
-                WHERE name LIKE :ilike_query 
-                   OR category LIKE :ilike_query
-                ORDER BY 
-                    CASE WHEN LOWER(name) = LOWER(:exact_query) THEN 0
+            where_parts = []
+            params = {"limit": limit, "offset": offset}
+
+            if has_query:
+                where_parts.append(
+                    "(name LIKE :ilike_query OR category LIKE :ilike_query)"
+                )
+                params["ilike_query"] = f"%{query}%"
+                params["exact_query"] = query
+                params["start_query"] = f"{query}%"
+
+            if has_bbox:
+                where_parts.append(
+                    "lat BETWEEN :min_lat AND :max_lat AND lon BETWEEN :min_lon AND :max_lon"
+                )
+                params.update({
+                    "min_lat": min_lat,
+                    "max_lat": max_lat,
+                    "min_lon": min_lon,
+                    "max_lon": max_lon,
+                })
+
+            where_clause = " AND ".join(where_parts) if where_parts else "1=1"
+
+            if has_query:
+                order_clause = """CASE WHEN LOWER(name) = LOWER(:exact_query) THEN 0
                          WHEN LOWER(name) LIKE LOWER(:start_query) THEN 1
-                         ELSE 2 END,
-                    name
-                LIMIT :limit
+                         ELSE 2 END, name"""
+            else:
+                order_clause = "name"
+
+            sql = text(f"""
+                SELECT place_id, name, address, category, source, lat, lon, metadata_json
+                FROM places
+                WHERE {where_clause}
+                ORDER BY {order_clause}
+                LIMIT :limit OFFSET :offset
             """)
 
-            results = conn.execute(sql, {
-                "ilike_query": f"%{query}%",
-                "exact_query": query,
-                "start_query": f"{query}%",
-                "limit": limit
-            }).fetchall()
+            results = conn.execute(sql, params).fetchall()
 
             out = []
             for row in results:
@@ -269,6 +319,10 @@ def _search_sqlite(query: str, limit: int):
                     "id": str(row.place_id),
                     "name": row.name,
                     "address": address,
+                    "category": getattr(row, 'category', None),
+                    "source": getattr(row, 'source', None),
+                    "lat": getattr(row, 'lat', None),
+                    "lon": getattr(row, 'lon', None),
                     "status": status,
                     "confidence": confidence
                 })
@@ -279,14 +333,31 @@ def _search_sqlite(query: str, limit: int):
             return []
 
 
-def search_places(query: str, limit: int = 20):
-    if not query or len(query.strip()) < 2:
+def search_places(
+    query: str,
+    limit: int = 20,
+    offset: int = 0,
+    min_lat: float = None,
+    max_lat: float = None,
+    min_lon: float = None,
+    max_lon: float = None,
+):
+    has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
+    if not has_bbox and (not query or len(query.strip()) < 2):
         return []
 
     if IS_POSTGRES:
-        return _search_postgres(query, limit)
+        return _search_postgres(
+            query, limit, offset,
+            min_lat=min_lat, max_lat=max_lat,
+            min_lon=min_lon, max_lon=max_lon,
+        )
     else:
-        return _search_sqlite(query, limit)
+        return _search_sqlite(
+            query, limit, offset,
+            min_lat=min_lat, max_lat=max_lat,
+            min_lon=min_lon, max_lon=max_lon,
+        )
 
 
 # =============================================================================
@@ -332,3 +403,82 @@ def get_place_metadata(place_id: str):
         return _get_metadata_postgres(place_id)
     else:
         return _get_metadata_sqlite(place_id)
+
+
+def get_place_record(place_id: str):
+    """
+    Return a fully-populated place dict (with prediction, canonical fields)
+    for the /place/{place_id} detail route, or None if not found.
+    """
+    if IS_POSTGRES:
+        return _get_place_record_postgres(place_id)
+    else:
+        return _get_place_record_sqlite(place_id)
+
+
+def _get_place_record_postgres(place_id: str):
+    with engine.connect() as conn:
+        try:
+            sql = text("""
+                SELECT
+                    place_id, name, category, source,
+                    ST_X(geom::geometry) AS lon,
+                    ST_Y(geom::geometry) AS lat,
+                    metadata_json
+                FROM places
+                WHERE place_id = :place_id
+            """)
+            row = conn.execute(sql, {"place_id": place_id}).fetchone()
+            if not row:
+                return None
+            metadata = row.metadata_json or {}
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+            return _extract_place_info(row, metadata)
+        except Exception as e:
+            print(f"PostgreSQL get_place_record error: {e}")
+            return None
+
+
+def _get_place_record_sqlite(place_id: str):
+    with engine.connect() as conn:
+        try:
+            sql = text("""
+                SELECT place_id, name, address, category, source, lat, lon, metadata_json
+                FROM places
+                WHERE place_id = :place_id
+            """)
+            row = conn.execute(sql, {"place_id": place_id}).fetchone()
+            if not row:
+                return None
+
+            metadata = {}
+            if row.metadata_json:
+                try:
+                    metadata = json.loads(row.metadata_json)
+                except Exception:
+                    pass
+
+            try:
+                pred = predict_place(metadata)
+                status = pred.get('status', 'unknown')
+                confidence = pred.get('confidence', 0.0)
+            except Exception:
+                status = 'unknown'
+                confidence = 0.0
+
+            return {
+                "id": str(row.place_id),
+                "name": row.name,
+                "address": row.address or "",
+                "category": getattr(row, 'category', None),
+                "source": getattr(row, 'source', None),
+                "lat": getattr(row, 'lat', None),
+                "lon": getattr(row, 'lon', None),
+                "metadata_json": metadata,
+                "status": status,
+                "confidence": confidence,
+            }
+        except Exception as e:
+            print(f"SQLite get_place_record error: {e}")
+            return None

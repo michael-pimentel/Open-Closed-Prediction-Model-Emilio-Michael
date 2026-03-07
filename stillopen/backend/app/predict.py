@@ -120,3 +120,7 @@ def predict_status(place) -> dict:
         place_data = {}
         
     return model_service.predict(place_data)
+
+def predict_place(place_data) -> dict:
+    # Simply call predict_status
+    return predict_status(place_data)

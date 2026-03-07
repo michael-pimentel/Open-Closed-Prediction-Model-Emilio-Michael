@@ -19,11 +19,6 @@ function persistRecent(q: string) {
     const updated = [q, ...loadRecent().filter(s => s !== q)].slice(0, MAX_RECENT);
     localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
 }
-function dropRecent(q: string): string[] {
-    const updated = loadRecent().filter(s => s !== q);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
-    return updated;
-}
 
 // Detect "coffee in Santa Cruz" / "gyms near Reno" / "bars around Chicago"
 const CITY_PATTERN = /^(.+?)\s+(?:in|near|around)\s+(.+)$/i;
@@ -37,29 +32,54 @@ function parseCityQuery(input: string): { term: string; city: string } | null {
     return null;
 }
 
+// Curated city list for autocomplete in the location field and "X in Y" completions
+const KNOWN_CITIES = [
+    "Santa Cruz, CA", "San Francisco, CA", "Sacramento, CA", "San Jose, CA",
+    "Oakland, CA", "Berkeley, CA", "Los Angeles, CA", "Fresno, CA",
+    "Modesto, CA", "Stockton, CA", "Santa Barbara, CA", "Santa Rosa, CA",
+    "Monterey, CA", "Salinas, CA", "Bakersfield, CA", "San Diego, CA",
+    "Long Beach, CA", "Anaheim, CA", "Riverside, CA", "Irvine, CA",
+    "Chicago, IL", "Reno, NV", "Las Vegas, NV", "Phoenix, AZ",
+    "Denver, CO", "Portland, OR", "Seattle, WA", "New York City, NY",
+    "Austin, TX", "Houston, TX", "Dallas, TX", "Atlanta, GA",
+    "Miami, FL", "Boston, MA", "Nashville, TN", "Minneapolis, MN",
+];
+
+function filterCities(input: string, max = 6): string[] {
+    const lower = input.trim().toLowerCase();
+    if (lower.length < 2) return [];
+    return KNOWN_CITIES
+        .filter(c => c.toLowerCase().startsWith(lower) || c.toLowerCase().includes(lower))
+        .slice(0, max);
+}
+
 export default function SearchBar({ compact = false }: { compact?: boolean }) {
     const [query, setQuery] = useState("");
     const [location, setLocation] = useState("");
     const [results, setResults] = useState<SearchResultType[]>([]);
     const [loading, setLoading] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
-    const [recentSearches, setRecentSearches] = useState<string[]>([]);
+    // Track which input is focused so we can swap dropdown content appropriately
+    const [activeInput, setActiveInput] = useState<"query" | "location">("query");
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
-    // Detect "X in Y" pattern live as the user types
+    // Detect "X in Y" pattern live as the user types in the main field
     const cityParsed = useMemo(() => parseCityQuery(query), [query]);
 
-    // The effective city: from the location field, or parsed from the query
+    // Effective city: from the location field, or parsed from the query
     const effectiveCity = location.trim() || cityParsed?.city || null;
-    // The effective search term: parsed left-side if city pattern matches, else full query
+    // Effective search term: left-side of "X in Y", or the full query
     const effectiveTerm = cityParsed ? cityParsed.term : query;
 
-    const hasCitySuggestion = effectiveCity !== null && (effectiveTerm.trim().length >= 2);
+    const hasCitySuggestion = effectiveCity !== null && effectiveTerm.trim().length >= 2;
 
-    useEffect(() => {
-        setRecentSearches(loadRecent());
-    }, []);
+    // City autocomplete: used when location field is active, OR for "X in Y" city completions
+    const citySuggestions = useMemo(() => {
+        if (activeInput === "location") return filterCities(location, 7);
+        if (cityParsed) return filterCities(cityParsed.city, 4);
+        return [];
+    }, [activeInput, location, cityParsed]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -71,9 +91,14 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Place search — only runs when the query field is active (not the location field)
     useEffect(() => {
-        // When city pattern is detected, search for just the term part (not the full "coffee in Santa Cruz")
-        const searchQuery = cityParsed ? cityParsed.term : (location.trim() ? `${query} ${location}` : query);
+        if (activeInput === "location") {
+            setResults([]);
+            return;
+        }
+        // When city pattern is detected in query, search for just the term part
+        const searchQuery = cityParsed ? cityParsed.term : query;
 
         if (searchQuery.trim().length < 2) {
             setResults([]);
@@ -93,7 +118,7 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
             }
         }, 300);
         return () => clearTimeout(timeoutId);
-    }, [query, location, cityParsed]);
+    }, [query, cityParsed, activeInput]);
 
     const handleSearchSubmit = () => {
         const trimmedQuery = effectiveTerm.trim();
@@ -117,7 +142,10 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
         persistRecent(query);
     };
 
-    const showDropdownContent = showDropdown && (results.length > 0 || hasCitySuggestion);
+    const showDropdownContent = showDropdown && (
+        (activeInput === "location" && citySuggestions.length > 0) ||
+        (activeInput === "query" && (results.length > 0 || hasCitySuggestion || citySuggestions.length > 0))
+    );
 
     return (
         <div className={`relative w-full ${compact ? 'max-w-md' : 'max-w-3xl px-6'}`} ref={dropdownRef}>
@@ -139,9 +167,11 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
                         value={query}
                         onChange={(e) => {
                             setQuery(e.target.value);
+                            setActiveInput("query");
                             if (e.target.value.length > 0) setShowDropdown(true);
                         }}
                         onFocus={() => {
+                            setActiveInput("query");
                             if (results.length > 0 || hasCitySuggestion) setShowDropdown(true);
                         }}
                         onKeyDown={(e) => {
@@ -165,7 +195,12 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
                         value={location}
                         onChange={(e) => {
                             setLocation(e.target.value);
-                            if (e.target.value.length > 0) setShowDropdown(true);
+                            setActiveInput("location");
+                            setShowDropdown(true);
+                        }}
+                        onFocus={() => {
+                            setActiveInput("location");
+                            setShowDropdown(true);
                         }}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') handleSearchSubmit();
@@ -209,49 +244,114 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
                     >
                         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-[0_12px_44px_rgba(0,0,0,0.22)] dark:shadow-[0_0_35px_rgba(255,255,255,0.12)] border border-gray-100 dark:border-gray-800 overflow-hidden ring-1 ring-black ring-opacity-5 dark:ring-white/10 max-h-96 overflow-y-auto">
 
-                            {/* City search suggestion row — pinned at the top */}
-                            {hasCitySuggestion && (
-                                <button
-                                    className="w-full px-6 py-3.5 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-900/10"
-                                    onClick={() => handleCitySearchClick(effectiveTerm.trim(), effectiveCity!)}
-                                >
-                                    <span className="text-lg leading-none">🏙</span>
-                                    <div className="flex flex-col">
-                                        <span className="font-bold text-gray-900 dark:text-white text-sm">
-                                            Search &ldquo;{effectiveTerm.trim()}&rdquo; in {effectiveCity}
-                                        </span>
-                                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-                                            City search &mdash; all matching places
+                            {/* === LOCATION FIELD MODE: show city autocomplete === */}
+                            {activeInput === "location" && citySuggestions.length > 0 && (
+                                <>
+                                    <div className="px-4 pt-3 pb-1">
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                                            Cities
                                         </span>
                                     </div>
-                                </button>
+                                    {citySuggestions.map((city) => (
+                                        <button
+                                            key={city}
+                                            className="w-full px-6 py-3 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0"
+                                            onClick={() => {
+                                                setLocation(city);
+                                                setShowDropdown(false);
+                                            }}
+                                        >
+                                            <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+                                            <span className="font-semibold text-gray-900 dark:text-white text-sm">{city}</span>
+                                        </button>
+                                    ))}
+                                </>
                             )}
 
-                            {/* Regular place results */}
-                            {results.map((result) => (
-                                <button
-                                    key={result.id}
-                                    className="w-full px-6 py-4 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-50 dark:border-gray-800 last:border-0 group"
-                                    onClick={() => {
-                                        setQuery(result.name);
-                                        setShowDropdown(false);
-                                        router.push(`/place/${result.id}`);
-                                    }}
-                                >
-                                    <div className="flex flex-col flex-1 pl-4 sm:pl-0 truncate">
-                                        <span className="font-bold text-gray-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors truncate">{result.name}</span>
-                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate max-w-xs">{result.address}</span>
-                                    </div>
-                                    <div className="mt-2 sm:mt-0 flex flex-col items-start sm:items-end flex-shrink-0 ml-4">
-                                        <StatusBadge status={result.status} />
-                                        {(result.status === 'open' || result.status === 'closed') && (
-                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 uppercase tracking-wider font-semibold">
-                                                Conf: {(result.confidence * 100).toFixed(0)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </button>
-                            ))}
+                            {/* === QUERY FIELD MODE === */}
+                            {activeInput === "query" && (
+                                <>
+                                    {/* City search suggestion row — pinned at top when city detected */}
+                                    {hasCitySuggestion && (
+                                        <button
+                                            className="w-full px-6 py-3.5 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-900/10"
+                                            onClick={() => handleCitySearchClick(effectiveTerm.trim(), effectiveCity!)}
+                                        >
+                                            <span className="text-lg leading-none">🏙</span>
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-gray-900 dark:text-white text-sm">
+                                                    Search &ldquo;{effectiveTerm.trim()}&rdquo; in {effectiveCity}
+                                                </span>
+                                                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                                                    City search &mdash; all matching places
+                                                </span>
+                                            </div>
+                                        </button>
+                                    )}
+
+                                    {/* City completions for partial "X in Y" city part */}
+                                    {cityParsed && citySuggestions.length > 0 && (
+                                        <>
+                                            <div className="px-4 pt-2 pb-1">
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                                                    City suggestions
+                                                </span>
+                                            </div>
+                                            {citySuggestions.map((city) => (
+                                                <button
+                                                    key={city}
+                                                    className="w-full px-6 py-2.5 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0"
+                                                    onClick={() => handleCitySearchClick(cityParsed.term, city)}
+                                                >
+                                                    <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+                                                    <span className="text-sm text-gray-900 dark:text-white">
+                                                        <span className="font-semibold">{cityParsed.term}</span>
+                                                        <span className="text-gray-500 dark:text-gray-400"> in </span>
+                                                        <span className="font-semibold">{city}</span>
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </>
+                                    )}
+
+                                    {/* Regular place results — separated when city suggestions also showing */}
+                                    {results.length > 0 && (
+                                        <>
+                                            {(hasCitySuggestion || citySuggestions.length > 0) && (
+                                                <div className="px-4 pt-2 pb-1">
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                                                        Places
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {results.map((result) => (
+                                                <button
+                                                    key={result.id}
+                                                    className="w-full px-6 py-4 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-50 dark:border-gray-800 last:border-0 group"
+                                                    onClick={() => {
+                                                        setQuery(result.name);
+                                                        setShowDropdown(false);
+                                                        router.push(`/place/${result.id}`);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col flex-1 pl-4 sm:pl-0 truncate">
+                                                        <span className="font-bold text-gray-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors truncate">{result.name}</span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate max-w-xs">{result.address}</span>
+                                                    </div>
+                                                    <div className="mt-2 sm:mt-0 flex flex-col items-start sm:items-end flex-shrink-0 ml-4">
+                                                        <StatusBadge status={result.status} />
+                                                        {(result.status === 'open' || result.status === 'closed') && (
+                                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 uppercase tracking-wider font-semibold">
+                                                                Conf: {(result.confidence * 100).toFixed(0)}%
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </motion.div>
                 )}

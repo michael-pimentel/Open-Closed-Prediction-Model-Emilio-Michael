@@ -71,7 +71,7 @@ export default function ResultsMap({ results }: ResultsMapProps) {
                 const color = isOpen
                     ? "#10b981"
                     : isClosed
-                    ? isDark ? "#f3f4f6" : "#111827"
+                    ? "#f43f5e"
                     : "#6b7280";
 
                 return (

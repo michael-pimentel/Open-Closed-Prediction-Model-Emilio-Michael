@@ -36,7 +36,24 @@ class ModelService:
         status = "unknown"
         confidence = 0.0
         features_dict = {}
-        
+
+        # If ground-truth open label is stored in metadata, use it directly.
+        # This handles OSM/seeded records where we know the actual status.
+        explicit_open = place_data.get('open')
+        if explicit_open is not None:
+            try:
+                explicit_open = int(explicit_open)
+                if explicit_open == 0:
+                    return {
+                        "status": "closed",
+                        "confidence": 0.90,
+                        "explanation": [
+                            "Data source indicates this place is permanently closed.",
+                        ],
+                    }
+            except (ValueError, TypeError):
+                pass
+
         try:
             # Compute features using the updated feature pipeline
             features_dict = compute_features(place_data, self.artifacts)

@@ -71,43 +71,8 @@ def _extract_place_info(row, metadata: dict) -> dict:
 # DATA SEEDING
 # =============================================================================
 
-def load_data_to_db():
-    """
-    Seeds the database on startup.
-    - PostgreSQL: No-op
-    - SQLite: Auto-seeds from parquet, extracting lat/lon from the bbox field.
-      If an old seed exists where lat/lon were not extracted (all NULL),
-      it is cleared and re-seeded automatically.
-    """
-    if IS_POSTGRES:
-        return
-
-    Base.metadata.create_all(bind=engine)
-
-    with engine.connect() as conn:
-        count = conn.execute(text("SELECT COUNT(*) FROM places")).fetchone()[0]
-        if count > 0:
-            # Detect old seed where coordinates were never extracted (all NULL).
-            # If any row has a non-NULL lat we consider the seed valid.
-            has_coords = conn.execute(
-                text("SELECT COUNT(*) FROM places WHERE lat IS NOT NULL")
-            ).fetchone()[0]
-            if has_coords > 0:
-                return
-            print("Detected old seed with no coordinates — re-seeding from parquet...")
-
-    data_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "project_c_samples.parquet")
-    data_path = os.path.normpath(data_path)
-
-    if not os.path.exists(data_path):
-        data_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "project_c_samples.parquet")
-        data_path = os.path.normpath(data_path)
-
-    if not os.path.exists(data_path):
-        return
-
-    df = pd.read_parquet(data_path)
-
+def _records_from_overture_parquet(df, id_prefix="overture"):
+    """Convert an Overture-format parquet DataFrame into DB record dicts."""
     records = []
     for idx, row in df.iterrows():
         names = row.get('names')
@@ -134,7 +99,7 @@ def load_data_to_db():
                     parts.append(addr['region'])
                 address_str = ', '.join(parts)
 
-        # Extract lat/lon from the parquet bbox field (xmin/xmax=lon, ymin/ymax=lat)
+        # Extract lat/lon from bbox field (xmin/xmax=lon, ymin/ymax=lat)
         lat = None
         lon = None
         bbox_data = row.get('bbox')
@@ -160,7 +125,7 @@ def load_data_to_db():
                 metadata[col] = val
 
         metadata['confidence'] = float(row.get('confidence', 0))
-        metadata['open'] = int(row.get('open', 1))
+        metadata['open'] = int(row.get('open', 1)) if 'open' in row.index else 1
 
         if isinstance(addrs, (list, np.ndarray)) and len(addrs) > 0:
             addr = addrs[0]
@@ -169,7 +134,7 @@ def load_data_to_db():
                 metadata['state'] = addr.get('region', '')
 
         records.append({
-            'place_id': str(row.get('id', f'place_{idx}')),
+            'place_id': str(row.get('id', f'{id_prefix}_{idx}')),
             'name': name,
             'category': category,
             'address': address_str,
@@ -178,11 +143,127 @@ def load_data_to_db():
             'source': 'overture',
             'metadata_json': json.dumps(metadata, default=str),
         })
+    return records
+
+
+def _records_from_osm_json(data):
+    """Convert OSM JSON records into DB record dicts."""
+    records = []
+    for item in data:
+        meta = item.get('metadata', {})
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+
+        metadata = {
+            'websites': meta.get('websites', []),
+            'socials': meta.get('socials', []),
+            'phones': meta.get('phones', []),
+            'confidence': float(meta.get('confidence', 0.5)),
+            'open': int(item.get('open', 1)),
+            'city': '',
+            'state': '',
+        }
+
+        addr = item.get('address', '')
+        parts = [p.strip() for p in addr.split(',')]
+        if len(parts) >= 2:
+            metadata['city'] = parts[-2] if len(parts) > 1 else ''
+            metadata['state'] = parts[-1] if len(parts) > 0 else ''
+
+        records.append({
+            'place_id': str(item.get('id', f"osm_{item.get('name', '')}_{len(records)}")),
+            'name': item.get('name', 'Unknown'),
+            'category': item.get('category', 'unknown'),
+            'address': addr,
+            'lat': item.get('lat'),
+            'lon': item.get('lon'),
+            'source': 'osm',
+            'metadata_json': json.dumps(metadata, default=str),
+        })
+    return records
+
+
+def load_data_to_db():
+    """
+    Seeds the database on startup.
+    - PostgreSQL: No-op
+    - SQLite: Seeds from project_c_samples.parquet, then supplements with
+      scripts/data/overture_places_us.parquet and scripts/data/osm_places.json
+      if present, giving a much richer dataset including closed places.
+    """
+    if IS_POSTGRES:
+        return
+
+    Base.metadata.create_all(bind=engine)
+
+    with engine.connect() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM places")).fetchone()[0]
+        if count > 0:
+            has_coords = conn.execute(
+                text("SELECT COUNT(*) FROM places WHERE lat IS NOT NULL")
+            ).fetchone()[0]
+            if has_coords > 0:
+                return
+            print("Detected old seed with no coordinates — re-seeding...")
+
+    # --- Source 1: original project parquet ---
+    backend_root = os.path.dirname(os.path.dirname(__file__))
+    project_root = os.path.normpath(os.path.join(backend_root, "..", ".."))
+
+    data_path = os.path.normpath(os.path.join(project_root, "data", "project_c_samples.parquet"))
+    if not os.path.exists(data_path):
+        data_path = os.path.normpath(os.path.join(backend_root, "..", "data", "project_c_samples.parquet"))
+
+    records = []
+    seen_ids = set()
+
+    if os.path.exists(data_path):
+        df = pd.read_parquet(data_path)
+        orig_records = _records_from_overture_parquet(df, id_prefix="orig")
+        for r in orig_records:
+            seen_ids.add(r['place_id'])
+            records.append(r)
+        print(f"  Loaded {len(orig_records)} places from project_c_samples.parquet")
+
+    # --- Source 2: Overture US parquet (large dataset) ---
+    overture_us_path = os.path.normpath(os.path.join(project_root, "scripts", "data", "overture_places_us.parquet"))
+    if os.path.exists(overture_us_path):
+        df_us = pd.read_parquet(overture_us_path)
+        overture_records = _records_from_overture_parquet(df_us, id_prefix="overture_us")
+        added = 0
+        for r in overture_records:
+            if r['place_id'] not in seen_ids:
+                seen_ids.add(r['place_id'])
+                records.append(r)
+                added += 1
+        print(f"  Loaded {added} additional places from overture_places_us.parquet")
+
+    # --- Source 3: OSM places (includes closed businesses) ---
+    osm_path = os.path.normpath(os.path.join(project_root, "scripts", "data", "osm_places.json"))
+    if os.path.exists(osm_path):
+        with open(osm_path) as f:
+            osm_data = json.load(f)
+        osm_records = _records_from_osm_json(osm_data)
+        added = 0
+        for r in osm_records:
+            if r['place_id'] not in seen_ids:
+                seen_ids.add(r['place_id'])
+                records.append(r)
+                added += 1
+        closed_count = sum(1 for item in osm_data if item.get('open') == 0)
+        print(f"  Loaded {added} additional places from osm_places.json ({closed_count} marked closed)")
+
+    if not records:
+        print("No data sources found — DB will be empty.")
+        return
 
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM places"))
         conn.execute(insert(Place), records)
-    print(f"Seeded {len(records)} places with coordinates.")
+    print(f"Seeded {len(records)} total places into DB.")
 
 
 # =============================================================================

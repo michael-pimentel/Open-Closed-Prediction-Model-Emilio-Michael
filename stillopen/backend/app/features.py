@@ -63,17 +63,26 @@ def compute_features(record: dict, artifacts: dict = None) -> dict:
     features = {}
     
     # ── 1. Binary Presence ──
-    features['has_website'] = has_value(record.get('websites'))
-    features['has_social'] = has_value(record.get('socials'))
-    features['has_phone'] = has_value(record.get('phones'))
-    features['has_address'] = has_value(record.get('addresses'))
-    features['has_email'] = has_value(record.get('emails'))
-    features['has_brand'] = has_value(record.get('brand'))
-    
+    # Handle both list-form ('websites') and singular-form ('website') field names,
+    # as different data sources (Overture S3 vs Postgres ingest) use different schemas.
+    websites = record.get('websites') or ([record['website']] if record.get('website') else None)
+    phones   = record.get('phones')   or ([record['phone']]   if record.get('phone')   else None)
+    socials  = record.get('socials')
+    addresses = record.get('addresses')
+    emails   = record.get('emails')
+    brand    = record.get('brand')
+
+    features['has_website'] = has_value(websites)
+    features['has_social']  = has_value(socials)
+    features['has_phone']   = has_value(phones)
+    features['has_address'] = has_value(addresses)
+    features['has_email']   = has_value(emails)
+    features['has_brand']   = has_value(brand)
+
     # ── 2. Count Features ──
-    features['num_websites'] = count_items(record.get('websites'))
-    features['num_socials'] = count_items(record.get('socials'))
-    features['num_phones'] = count_items(record.get('phones'))
+    features['num_websites'] = count_items(websites)
+    features['num_socials']  = count_items(socials)
+    features['num_phones']   = count_items(phones)
     
     # ── 3. Source Analysis ──
     sources = safe_parse_struct(record.get('sources'))
@@ -84,7 +93,7 @@ def compute_features(record: dict, artifacts: dict = None) -> dict:
     
     if sources and isinstance(sources, list):
         num_sources = len(sources)
-        confidences = [s.get('confidence', 0) for s in sources if isinstance(s, dict)]
+        confidences = [s['confidence'] for s in sources if isinstance(s, dict) and s.get('confidence') is not None]
         if confidences:
             mean_conf = float(np.mean(confidences))
             

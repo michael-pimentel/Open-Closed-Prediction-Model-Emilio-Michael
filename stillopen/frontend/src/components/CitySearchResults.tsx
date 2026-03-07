@@ -56,6 +56,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [resolvedCity, setResolvedCity] = useState<string | null>(null);
+    const [boundary, setBoundary] = useState<object | null>(null);
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
     const [sortKey, setSortKey] = useState<SortKey>("confidence");
     const [mobileView, setMobileView] = useState<"list" | "map">("list");
@@ -74,6 +75,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
         setLoading(true);
         setError(null);
         setResults([]);
+        setBoundary(null);
         setCategoryFilter(null);
 
         async function run() {
@@ -91,6 +93,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
 
             // Use first segment of display name as the short city name
             setResolvedCity(geoResult.displayName.split(",")[0].trim());
+            setBoundary(geoResult.boundary);
 
             // Paginate until we hit MAX_RESULTS or run out of data.
             // The backend already filters by bbox + keyword so batches are small.
@@ -411,7 +414,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
                         mobileView === "map" ? "block" : "hidden lg:block"
                     }`}
                 >
-                    <ResultsMap results={displayedResults} />
+                    <ResultsMap results={displayedResults} boundary={boundary} />
                 </div>
             </div>
         </div>

@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, GeoJSON, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
 import StatusBadge from "./StatusBadge";
 import { MapPin, Clock, Globe, Phone } from "lucide-react";
 import type { SearchResultType } from "./SearchResults";
+import type { GeoJsonObject } from "geojson";
 
 function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
     const map = useMap();
@@ -17,9 +18,10 @@ function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }
 
 interface ResultsMapProps {
     results: SearchResultType[];
+    boundary?: object | null;
 }
 
-export default function ResultsMap({ results }: ResultsMapProps) {
+export default function ResultsMap({ results, boundary }: ResultsMapProps) {
     const defaultCenter: [number, number] = [36.7783, -119.4179]; // California fallback
     const [isDark, setIsDark] = useState(false);
 
@@ -55,6 +57,10 @@ export default function ResultsMap({ results }: ResultsMapProps) {
     const first = validResults[0];
     const center: [number, number] = [first.lat as number, first.lon as number];
 
+    const boundaryKey = boundary
+        ? `boundary-${JSON.stringify(boundary).slice(0, 60)}`
+        : "no-boundary";
+
     return (
         <MapContainer center={center} zoom={13} scrollWheelZoom className="w-full h-full rounded-2xl z-0">
             <TileLayer
@@ -63,6 +69,20 @@ export default function ResultsMap({ results }: ResultsMapProps) {
                 url={tileUrl}
             />
             <MapUpdater center={center} zoom={13} />
+
+            {boundary && (
+                <GeoJSON
+                    key={boundaryKey}
+                    data={boundary as GeoJsonObject}
+                    style={() => ({
+                        color: "#10b981",
+                        weight: 2,
+                        opacity: 1,
+                        fillColor: "#10b981",
+                        fillOpacity: 0.08,
+                    })}
+                />
+            )}
 
             {validResults.map((res) => {
                 const isOpen = res.status?.toLowerCase() === "open";

@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { Search, Loader2, Clock, X } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Search, Loader2, MapPin, Building2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { searchPlaces } from "../lib/api";
@@ -25,8 +25,21 @@ function dropRecent(q: string): string[] {
     return updated;
 }
 
+// Detect "coffee in Santa Cruz" / "gyms near Reno" / "bars around Chicago"
+const CITY_PATTERN = /^(.+?)\s+(?:in|near|around)\s+(.+)$/i;
+
+function parseCityQuery(input: string): { term: string; city: string } | null {
+    const match = input.match(CITY_PATTERN);
+    if (!match) return null;
+    const term = match[1].trim();
+    const city = match[2].trim();
+    if (term.length >= 2 && city.length >= 2) return { term, city };
+    return null;
+}
+
 export default function SearchBar({ compact = false }: { compact?: boolean }) {
     const [query, setQuery] = useState("");
+    const [location, setLocation] = useState("");
     const [results, setResults] = useState<SearchResultType[]>([]);
     const [loading, setLoading] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -34,7 +47,16 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
-    // Load recent searches from localStorage on mount
+    // Detect "X in Y" pattern live as the user types
+    const cityParsed = useMemo(() => parseCityQuery(query), [query]);
+
+    // The effective city: from the location field, or parsed from the query
+    const effectiveCity = location.trim() || cityParsed?.city || null;
+    // The effective search term: parsed left-side if city pattern matches, else full query
+    const effectiveTerm = cityParsed ? cityParsed.term : query;
+
+    const hasCitySuggestion = effectiveCity !== null && (effectiveTerm.trim().length >= 2);
+
     useEffect(() => {
         setRecentSearches(loadRecent());
     }, []);
@@ -50,7 +72,10 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
     }, []);
 
     useEffect(() => {
-        if (query.trim().length < 2) {
+        // When city pattern is detected, search for just the term part (not the full "coffee in Santa Cruz")
+        const searchQuery = cityParsed ? cityParsed.term : (location.trim() ? `${query} ${location}` : query);
+
+        if (searchQuery.trim().length < 2) {
             setResults([]);
             return;
         }
@@ -58,7 +83,7 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
         const timeoutId = setTimeout(async () => {
             setLoading(true);
             try {
-                const data = await searchPlaces(query);
+                const data = await searchPlaces(searchQuery);
                 setResults(data);
                 setShowDropdown(true);
             } catch (e) {
@@ -68,54 +93,141 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
             }
         }, 300);
         return () => clearTimeout(timeoutId);
-    }, [query]);
+    }, [query, location, cityParsed]);
 
     const handleSearchSubmit = () => {
-        if (query.trim()) {
-            router.push(`/search?q=${encodeURIComponent(query)}`);
-            setShowDropdown(false);
+        const trimmedQuery = effectiveTerm.trim();
+        if (!trimmedQuery && !effectiveCity) return;
+
+        let url: string;
+        if (effectiveCity) {
+            url = `/search?q=${encodeURIComponent(trimmedQuery)}&city=${encodeURIComponent(effectiveCity)}`;
+        } else {
+            url = `/search?q=${encodeURIComponent(trimmedQuery)}`;
         }
-    }
+
+        router.push(url);
+        setShowDropdown(false);
+        persistRecent(query);
+    };
+
+    const handleCitySearchClick = (term: string, city: string) => {
+        router.push(`/search?q=${encodeURIComponent(term)}&city=${encodeURIComponent(city)}`);
+        setShowDropdown(false);
+        persistRecent(query);
+    };
+
+    const showDropdownContent = showDropdown && (results.length > 0 || hasCitySuggestion);
 
     return (
-        <div className={`relative w-full ${compact ? 'max-w-md' : 'max-w-2xl px-6'}`} ref={dropdownRef}>
-            <div className="relative group w-full flex">
-                <div className={`absolute inset-y-0 left-0 flex items-center pointer-events-none z-10 ${compact ? 'pl-4' : 'pl-10'}`}>
-                    {loading ? (
-                        <Loader2 className="h-5 w-5 text-emerald-500 animate-spin drop-shadow-sm" />
-                    ) : (
-                        <Search className="h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]" />
-                    )}
+        <div className={`relative w-full ${compact ? 'max-w-md' : 'max-w-3xl px-6'}`} ref={dropdownRef}>
+            <div className={`flex w-full overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.12)] dark:shadow-[0_0_18px_rgba(255,255,255,0.12)] hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)] dark:hover:shadow-[0_0_35px_rgba(255,255,255,0.2)] group ${compact ? 'rounded-lg text-sm' : 'rounded-full text-lg'}`}>
+
+                {/* What Input Section */}
+                <div className="flex-1 relative flex items-center min-w-0">
+                    <div className={`absolute left-0 flex items-center pointer-events-none z-10 ${compact ? 'pl-4' : 'pl-8'}`}>
+                        {loading ? (
+                            <Loader2 className="h-5 w-5 text-emerald-500 animate-spin" />
+                        ) : (
+                            <Search className="h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
+                        )}
+                    </div>
+                    <input
+                        type="text"
+                        className={`block w-full text-gray-900 dark:text-white bg-transparent placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none transition-all ${compact ? 'pl-11 pr-4 py-2' : 'pl-16 pr-4 py-5'}`}
+                        placeholder="Business, place, or &quot;coffee in Santa Cruz&quot;..."
+                        value={query}
+                        onChange={(e) => {
+                            setQuery(e.target.value);
+                            if (e.target.value.length > 0) setShowDropdown(true);
+                        }}
+                        onFocus={() => {
+                            if (results.length > 0 || hasCitySuggestion) setShowDropdown(true);
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSearchSubmit();
+                        }}
+                    />
                 </div>
-                <input
-                    type="text"
-                    className={`block w-full text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.12)] dark:shadow-[0_0_18px_rgba(255,255,255,0.12)] ${compact ? 'pl-12 pr-4 py-2 rounded-lg text-sm' : 'pl-16 pr-6 py-6 rounded-full text-lg hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)] dark:hover:shadow-[0_0_35px_rgba(255,255,255,0.2)]'}`}
-                    placeholder="Search for a business or place..."
-                    value={query}
-                    onChange={(e) => {
-                        setQuery(e.target.value);
-                        if (e.target.value.length > 0) setShowDropdown(true);
-                    }}
-                    onFocus={() => {
-                        if (results.length > 0) setShowDropdown(true);
-                    }}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            handleSearchSubmit();
-                        }
-                    }}
-                />
+
+                {/* Vertical Divider */}
+                <div className="w-px h-8 self-center bg-gray-200 dark:bg-gray-700 hidden sm:block" />
+
+                {/* Where Input Section */}
+                <div className="flex-[0.8] relative hidden sm:flex items-center min-w-0">
+                    <div className="absolute left-4 flex items-center pointer-events-none z-10">
+                        <MapPin className={`h-5 w-5 transition-colors ${location.trim() ? 'text-emerald-500' : 'text-gray-400 group-focus-within:text-emerald-500'}`} />
+                    </div>
+                    <input
+                        type="text"
+                        className={`block w-full text-gray-900 dark:text-white bg-transparent placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none transition-all ${compact ? 'pl-11 pr-4 py-2' : 'pl-11 pr-4 py-5'}`}
+                        placeholder="City or location..."
+                        value={location}
+                        onChange={(e) => {
+                            setLocation(e.target.value);
+                            if (e.target.value.length > 0) setShowDropdown(true);
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSearchSubmit();
+                        }}
+                    />
+                </div>
+
+                {/* Search Button (only for non-compact) */}
+                {!compact && (
+                    <button
+                        onClick={handleSearchSubmit}
+                        className="m-1.5 px-8 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition-all shadow-md active:scale-95 flex-shrink-0"
+                    >
+                        Search
+                    </button>
+                )}
             </div>
 
+            {/* City search chip — shown below bar when city is detected */}
             <AnimatePresence>
-                {showDropdown && results.length > 0 && (
+                {!compact && hasCitySuggestion && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        className="absolute left-6 right-6 top-full mt-1.5 z-40 flex items-center gap-1.5 px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-full text-xs font-semibold text-emerald-700 dark:text-emerald-400 shadow-sm pointer-events-none w-fit"
+                    >
+                        <Building2 className="w-3 h-3" />
+                        Searching in <span className="font-bold">{effectiveCity}</span>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showDropdownContent && (
                     <motion.div
                         initial={{ opacity: 0, y: -10, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                        className={`absolute z-50 w-full left-0 right-0 mt-2 ${compact ? '' : 'px-6'}`}
+                        className={`absolute z-50 w-full left-0 right-0 ${hasCitySuggestion && !compact ? 'mt-10' : 'mt-2'} ${compact ? '' : 'px-6'}`}
                     >
                         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-[0_12px_44px_rgba(0,0,0,0.22)] dark:shadow-[0_0_35px_rgba(255,255,255,0.12)] border border-gray-100 dark:border-gray-800 overflow-hidden ring-1 ring-black ring-opacity-5 dark:ring-white/10 max-h-96 overflow-y-auto">
+
+                            {/* City search suggestion row — pinned at the top */}
+                            {hasCitySuggestion && (
+                                <button
+                                    className="w-full px-6 py-3.5 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-900/10"
+                                    onClick={() => handleCitySearchClick(effectiveTerm.trim(), effectiveCity!)}
+                                >
+                                    <span className="text-lg leading-none">🏙</span>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-gray-900 dark:text-white text-sm">
+                                            Search &ldquo;{effectiveTerm.trim()}&rdquo; in {effectiveCity}
+                                        </span>
+                                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                                            City search &mdash; all matching places
+                                        </span>
+                                    </div>
+                                </button>
+                            )}
+
+                            {/* Regular place results */}
                             {results.map((result) => (
                                 <button
                                     key={result.id}

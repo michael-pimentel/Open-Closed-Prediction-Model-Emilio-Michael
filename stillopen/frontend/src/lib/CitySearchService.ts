@@ -7,10 +7,44 @@ export interface BoundingBox {
     max_lon: number;
 }
 
+// Common city aliases / typo corrections so users don't get a blank result.
+// Keys are lowercased; values are the canonical geocodeable string.
+const CITY_ALIASES: Record<string, string> = {
+    "sf": "San Francisco, CA",
+    "san fransisco": "San Francisco, CA",
+    "san francisco": "San Francisco, CA",
+    "la": "Los Angeles, CA",
+    "los angelas": "Los Angeles, CA",
+    "nyc": "New York City, NY",
+    "new york": "New York City, NY",
+    "santa cruz": "Santa Cruz, CA",
+    "san jose": "San Jose, CA",
+    "san josé": "San Jose, CA",
+    "sacremento": "Sacramento, CA",
+    "sacramento": "Sacramento, CA",
+    "las vegas": "Las Vegas, NV",
+    "vegas": "Las Vegas, NV",
+    "chicago": "Chicago, IL",
+    "reno": "Reno, NV",
+    "fresno": "Fresno, CA",
+    "stockton": "Stockton, CA",
+    "modesto": "Modesto, CA",
+    "oakland": "Oakland, CA",
+    "berkeley": "Berkeley, CA",
+    "santa barbara": "Santa Barbara, CA",
+    "santa rosa": "Santa Rosa, CA",
+};
+
+function resolveAlias(cityName: string): string {
+    const lower = cityName.trim().toLowerCase();
+    return CITY_ALIASES[lower] ?? cityName;
+}
+
 export async function geocodeCity(cityName: string): Promise<{ bbox: BoundingBox; displayName: string; boundary: object | null } | null> {
     try {
+        const resolvedName = resolveAlias(cityName);
         // polygon_geojson=1 requests the city boundary polygon as GeoJSON
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName)}&format=json&limit=5&polygon_geojson=1&countrycodes=us`;
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(resolvedName)}&format=json&limit=5&polygon_geojson=1&countrycodes=us`;
         const res = await fetch(url, { headers: { 'User-Agent': 'StillOpenCitiesMode/1.0' } });
         if (!res.ok) return null;
 

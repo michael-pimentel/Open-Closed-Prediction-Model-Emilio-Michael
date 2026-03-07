@@ -43,16 +43,6 @@ export default function Navbar() {
 
                 <div className="flex items-center gap-2 ml-auto">
                     <Link
-                        href="/search"
-                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${isSearch
-                            ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                            : "text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 border border-transparent"
-                            }`}
-                    >
-                        <Search className="w-4 h-4 drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]" />
-                        <span className="hidden sm:inline">Search</span>
-                    </Link>
-                    <Link
                         href="/cities"
                         className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${isCities
                             ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"

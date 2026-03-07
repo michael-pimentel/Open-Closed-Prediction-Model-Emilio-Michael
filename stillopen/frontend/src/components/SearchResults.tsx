@@ -32,7 +32,7 @@ export interface SearchResultType {
     photo_url?: string;
 }
 
-export default function SearchResults({ query }: { query: string }) {
+export default function SearchResults({ query, location }: { query: string; location?: string }) {
     const [results, setResults] = useState<SearchResultType[]>([]);
     const [loading, setLoading] = useState(false);
     const [mobileView, setMobileView] = useState<"list" | "map">("list");
@@ -44,12 +44,16 @@ export default function SearchResults({ query }: { query: string }) {
             return;
         }
         setTimeout(() => { if (active) setLoading(true); }, 0);
-        searchPlaces(query)
+
+        // Combine query and location for the API call
+        const fullQuery = location ? `${query} ${location}` : query;
+
+        searchPlaces(fullQuery)
             .then((data) => { if (active) setResults(data); })
             .catch((err) => console.error(err))
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
-    }, [query]);
+    }, [query, location]);
 
     if (loading) {
         return (
@@ -87,123 +91,122 @@ export default function SearchResults({ query }: { query: string }) {
                 </button>
             </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full h-[78vh] relative">
-            {/* Scrollable result cards */}
-            <div className={`flex flex-col gap-4 overflow-y-auto pr-1 pb-12 ${mobileView === "map" ? "hidden lg:flex" : "flex"}`}>
-                {results.map((res) => (
-                    <Link
-                        href={`/place/${res.id}`}
-                        key={res.id}
-                        className="block flex-shrink-0 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group overflow-hidden"
-                    >
-                        <div className="flex gap-0">
-                            {/* Photo thumbnail — only if real URL */}
-                            {res.photo_url && (
-                                <div className="w-28 sm:w-36 flex-shrink-0 relative self-stretch min-h-[140px] bg-gray-100">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={res.photo_url}
-                                        alt={res.name || "Unknown Place"}
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                    />
-                                </div>
-                            )}
-
-                            <div className="flex flex-col flex-1 min-w-0 p-5 min-h-[140px]">
-                                {/* Name + status */}
-                                <div className="flex justify-between items-start gap-2">
-                                    <h2 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight">
-                                        {res.name || "Unknown Place"}
-                                    </h2>
-                                    <div className="flex-shrink-0">
-                                        <StatusBadge status={res.status} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full h-[78vh] relative">
+                {/* Scrollable result cards */}
+                <div className={`flex flex-col gap-4 overflow-y-auto pr-1 pb-12 ${mobileView === "map" ? "hidden lg:flex" : "flex"}`}>
+                    {results.map((res) => (
+                        <Link
+                            href={`/place/${res.id}`}
+                            key={res.id}
+                            className="block flex-shrink-0 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group overflow-hidden"
+                        >
+                            <div className="flex gap-0">
+                                {/* Photo thumbnail — only if real URL */}
+                                {res.photo_url && (
+                                    <div className="w-28 sm:w-36 flex-shrink-0 relative self-stretch min-h-[140px] bg-gray-100">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={res.photo_url}
+                                            alt={res.name || "Unknown Place"}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                        />
                                     </div>
-                                </div>
-
-                                {/* Category */}
-                                {res.category && (
-                                    <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-700 font-bold uppercase tracking-wider">
-                                        <Tag className="w-3 h-3" /> {res.category}
-                                    </span>
                                 )}
 
-                                {/* Details block */}
-                                <div className="mt-3 space-y-1.5 text-sm text-gray-500 dark:text-gray-400 flex-1">
-                                    <p className="flex items-start gap-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                                        Source: {res.source || "Unknown"}
-                                    </p>
-                                    <p className="flex items-start gap-1.5">
-                                        <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
-                                        {res.address ? (
-                                            <span className="line-clamp-2">{res.address}</span>
-                                        ) : (
-                                            <span className="text-gray-400 italic">
-                                                {res.lat && res.lon ? `Coords: ${res.lat.toFixed(5)}, ${res.lon.toFixed(5)}` : "No address provided"}
-                                            </span>
-                                        )}
-                                    </p>
-                                    {res.opening_hours && (
-                                        <p className="flex items-center gap-1.5">
-                                            <Clock className="w-4 h-4 shrink-0 text-gray-400" />
-                                            <span className="truncate">{res.opening_hours}</span>
-                                        </p>
-                                    )}
-                                    {res.phone && (
-                                        <p className="flex items-center gap-1.5">
-                                            <Phone className="w-4 h-4 shrink-0 text-gray-400" />
-                                            <span>{res.phone}</span>
-                                        </p>
-                                    )}
-                                    {res.website && (
-                                        <p
-                                            className="flex items-center gap-1.5"
-                                            onClick={(e) => e.preventDefault()}
-                                        >
-                                            <Globe className="w-4 h-4 shrink-0 text-gray-400" />
-                                            <a
-                                                href={res.website}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="text-blue-500 hover:underline truncate max-w-[200px]"
-                                            >
-                                                {res.website.replace(/^https?:\/\//, "")}
-                                            </a>
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Confidence footer */}
-                                {(res.status === "open" || res.status === "closed") && (
-                                    <div className="mt-3 flex items-center gap-2">
-                                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                                            <div
-                                                className={`h-full rounded-full transition-all ${
-                                                    (res.confidence ?? 0) > 0.75
-                                                        ? "bg-emerald-500"
-                                                        : (res.confidence ?? 0) >= 0.5
-                                                        ? "bg-amber-400"
-                                                        : "bg-rose-400"
-                                                }`}
-                                                style={{ width: `${((res.confidence ?? 0) * 100).toFixed(0)}%` }}
-                                            />
+                                <div className="flex flex-col flex-1 min-w-0 p-5 min-h-[140px]">
+                                    {/* Name + status */}
+                                    <div className="flex justify-between items-start gap-2">
+                                        <h2 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight">
+                                            {res.name || "Unknown Place"}
+                                        </h2>
+                                        <div className="flex-shrink-0">
+                                            <StatusBadge status={res.status} />
                                         </div>
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 shrink-0">
-                                            {((res.confidence ?? 0) * 100).toFixed(0)}%
-                                        </span>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    </Link>
-                ))}
-            </div>
 
-            {/* Map panel */}
-            <div className={`h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
-                <ResultsMap results={results} />
+                                    {/* Category */}
+                                    {res.category && (
+                                        <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-700 font-bold uppercase tracking-wider">
+                                            <Tag className="w-3 h-3" /> {res.category}
+                                        </span>
+                                    )}
+
+                                    {/* Details block */}
+                                    <div className="mt-3 space-y-1.5 text-sm text-gray-500 dark:text-gray-400 flex-1">
+                                        <p className="flex items-start gap-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                                            Source: {res.source || "Unknown"}
+                                        </p>
+                                        <p className="flex items-start gap-1.5">
+                                            <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
+                                            {res.address ? (
+                                                <span className="line-clamp-2">{res.address}</span>
+                                            ) : (
+                                                <span className="text-gray-400 italic">
+                                                    {res.lat && res.lon ? `Coords: ${res.lat.toFixed(5)}, ${res.lon.toFixed(5)}` : "No address provided"}
+                                                </span>
+                                            )}
+                                        </p>
+                                        {res.opening_hours && (
+                                            <p className="flex items-center gap-1.5">
+                                                <Clock className="w-4 h-4 shrink-0 text-gray-400" />
+                                                <span className="truncate">{res.opening_hours}</span>
+                                            </p>
+                                        )}
+                                        {res.phone && (
+                                            <p className="flex items-center gap-1.5">
+                                                <Phone className="w-4 h-4 shrink-0 text-gray-400" />
+                                                <span>{res.phone}</span>
+                                            </p>
+                                        )}
+                                        {res.website && (
+                                            <p
+                                                className="flex items-center gap-1.5"
+                                                onClick={(e) => e.preventDefault()}
+                                            >
+                                                <Globe className="w-4 h-4 shrink-0 text-gray-400" />
+                                                <a
+                                                    href={res.website}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="text-blue-500 hover:underline truncate max-w-[200px]"
+                                                >
+                                                    {res.website.replace(/^https?:\/\//, "")}
+                                                </a>
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Confidence footer */}
+                                    {(res.status === "open" || res.status === "closed") && (
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all ${(res.confidence ?? 0) > 0.75
+                                                            ? "bg-emerald-500"
+                                                            : (res.confidence ?? 0) >= 0.5
+                                                                ? "bg-amber-400"
+                                                                : "bg-rose-400"
+                                                        }`}
+                                                    style={{ width: `${((res.confidence ?? 0) * 100).toFixed(0)}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 shrink-0">
+                                                {((res.confidence ?? 0) * 100).toFixed(0)}%
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+
+                {/* Map panel */}
+                <div className={`h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
+                    <ResultsMap results={results} />
+                </div>
             </div>
-        </div>
         </div>
     );
 }

@@ -47,7 +47,7 @@ export default function ResultCard({ data }: ResultProps) {
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-2xl bg-white rounded-2xl shadow-xl flex flex-col border border-gray-100 overflow-hidden"
+            className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl shadow-xl flex flex-col border border-gray-100 dark:border-gray-800 overflow-hidden"
         >
             {/* Hero photo — only if we have a real URL */}
             {data.photo_url && (
@@ -65,13 +65,13 @@ export default function ResultCard({ data }: ResultProps) {
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ type: "spring" }}
-                        className={`p-5 rounded-full ${bgClass} ${colorClass}`}
+                        className={`p-5 rounded-full ${bgClass} ${colorClass} drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]`}
                     >
                         {icon}
                     </motion.div>
 
                     <div>
-                        <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
+                        <h2 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
                             {data.name || "Unknown Place"}
                         </h2>
 
@@ -91,39 +91,54 @@ export default function ResultCard({ data }: ResultProps) {
                             </div>
                         )}
 
-                        {/* Confidence */}
+                        {/* Status label */}
                         <div className={`mt-6 text-5xl font-black tracking-tighter uppercase ${colorClass}`}>
                             {data.status}
                         </div>
+                        {/* Confidence bar */}
                         {(isOpen || isClosed) && (
-                            <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mt-2">
-                                Confidence: {((data.confidence ?? 0) * 100).toFixed(0)}%
-                            </p>
+                            <div className="mt-4 w-48 mx-auto flex flex-col items-center gap-1.5">
+                                <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all ${
+                                            (data.confidence ?? 0) > 0.75
+                                                ? "bg-emerald-500"
+                                                : (data.confidence ?? 0) >= 0.5
+                                                ? "bg-amber-400"
+                                                : "bg-rose-400"
+                                        }`}
+                                        style={{ width: `${((data.confidence ?? 0) * 100).toFixed(0)}%` }}
+                                    />
+                                </div>
+                                <p className="text-gray-400 dark:text-gray-500 text-xs font-semibold uppercase tracking-widest">
+                                    {((data.confidence ?? 0) * 100).toFixed(0)}% confidence
+                                </p>
+                            </div>
                         )}
                     </div>
                 </div>
 
                 {/* Contact / location info */}
-                <div className="bg-gray-50 rounded-xl border border-gray-100 divide-y divide-gray-100">
+                <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
                     <div className="flex items-start gap-3 p-4">
-                        <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
+                        <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-gray-400 drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]" />
                         {data.address ? (
-                            <span className="text-gray-700 text-sm">{data.address}</span>
+                            <span className="text-gray-700 dark:text-gray-300 text-sm">{data.address}</span>
                         ) : (
-                            <span className="text-gray-400 italic text-sm">
+                            <span className="text-gray-400 dark:text-gray-500 italic text-sm">
                                 {data.lat && data.lon ? `Coordinates: ${data.lat.toFixed(5)}, ${data.lon.toFixed(5)}` : "No address provided"}
                             </span>
                         )}
                     </div>
                     {data.opening_hours && (
                         <div className="flex items-start gap-3 p-4">
-                            <Clock className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
-                            <span className="text-gray-700 text-sm">{data.opening_hours}</span>
+                            <Clock className="w-4 h-4 mt-0.5 shrink-0 text-gray-400 drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]" />
+                            <span className="text-gray-700 dark:text-gray-300 text-sm">{data.opening_hours}</span>
                         </div>
                     )}
                     {data.phone && (
                         <div className="flex items-start gap-3 p-4">
-                            <Phone className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
+                            <Phone className="w-4 h-4 mt-0.5 shrink-0 text-gray-400 drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]" />
                             <a href={`tel:${data.phone}`} className="text-blue-500 hover:underline text-sm">
                                 {data.phone}
                             </a>
@@ -131,7 +146,7 @@ export default function ResultCard({ data }: ResultProps) {
                     )}
                     {data.website && (
                         <div className="flex items-start gap-3 p-4">
-                            <Globe className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
+                            <Globe className="w-4 h-4 mt-0.5 shrink-0 text-gray-400 drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]" />
                             <a href={data.website} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-sm truncate max-w-xs">
                                 {data.website.replace(/^https?:\/\//, "")}
                             </a>
@@ -140,21 +155,21 @@ export default function ResultCard({ data }: ResultProps) {
                 </div>
 
                 {/* Signal Analysis */}
-                <div className="border-t border-gray-100 pt-8">
-                    <h3 className="text-gray-400 font-bold text-xs tracking-widest uppercase mb-5 flex items-center gap-2">
-                        <Info className="w-4 h-4" /> Signal Analysis
+                <div className="border-t border-gray-100 dark:border-gray-800 pt-8">
+                    <h3 className="text-gray-400 dark:text-gray-500 font-bold text-xs tracking-widest uppercase mb-5 flex items-center gap-2">
+                        <Info className="w-4 h-4 drop-shadow-sm dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]" /> Signal Analysis
                     </h3>
                     {data.explanation && data.explanation.length > 0 ? (
                         <ul className="space-y-3">
                             {data.explanation.map((item: string, idx: number) => (
-                                <li key={idx} className="flex items-start text-gray-600 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <li key={idx} className="flex items-start text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/60 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                                     <span className="w-2 h-2 mt-2 mr-3 bg-emerald-400 rounded-full flex-shrink-0"></span>
                                     <span className="text-sm">{item}</span>
                                 </li>
                             ))}
                         </ul>
                     ) : (
-                        <p className="text-gray-500 italic text-sm">No detailed explanation available for this prediction.</p>
+                        <p className="text-gray-500 dark:text-gray-500 italic text-sm">No detailed explanation available for this prediction.</p>
                     )}
                 </div>
             </div>

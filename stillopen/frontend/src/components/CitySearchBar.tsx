@@ -20,7 +20,7 @@ export default function CitySearchBar() {
                 </div>
                 <input
                     type="text"
-                    className={`block w-full text-gray-900 border border-gray-200 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm pl-16 pr-6 py-6 rounded-full text-lg shadow-xl shadow-gray-100/50 hover:shadow-2xl hover:shadow-gray-200/50`}
+                    className={`block w-full text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pl-16 pr-6 py-6 rounded-full text-lg shadow-[0_10px_35px_rgba(0,0,0,0.15)] dark:shadow-[0_0_20px_rgba(255,255,255,0.12)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.22)] dark:hover:shadow-[0_0_35px_rgba(255,255,255,0.2)]`}
                     placeholder="Enter a city name (e.g. San Francisco, CA)..."
                     value={city}
                     onChange={(e) => setCity(e.target.value)}

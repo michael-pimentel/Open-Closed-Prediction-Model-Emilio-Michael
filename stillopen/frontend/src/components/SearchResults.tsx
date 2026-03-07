@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { searchPlaces } from "../lib/api";
 import StatusBadge from "./StatusBadge";
 import Link from "next/link";
-import { Loader2, Globe, Clock, MapPin, Phone, Tag } from "lucide-react";
+import { Loader2, Globe, Clock, MapPin, Phone, Tag, List, Map } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const ResultsMap = dynamic(() => import("./ResultsMap"), {
@@ -35,6 +35,7 @@ export interface SearchResultType {
 export default function SearchResults({ query }: { query: string }) {
     const [results, setResults] = useState<SearchResultType[]>([]);
     const [loading, setLoading] = useState(false);
+    const [mobileView, setMobileView] = useState<"list" | "map">("list");
 
     useEffect(() => {
         let active = true;
@@ -60,7 +61,7 @@ export default function SearchResults({ query }: { query: string }) {
 
     if (results.length === 0 && query) {
         return (
-            <div className="text-gray-500 text-center w-full p-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <div className="text-gray-500 dark:text-gray-400 text-center w-full p-12 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
                 No results found for &quot;{query}&quot;. Try a different search.
             </div>
         );
@@ -68,17 +69,32 @@ export default function SearchResults({ query }: { query: string }) {
 
     if (results.length === 0) return null;
 
-    console.log("Search results mapped in render:", results);
-
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-7xl mx-auto h-[78vh] relative">
+        <div className="flex flex-col w-full max-w-7xl mx-auto gap-4">
+            {/* Mobile toggle — only visible below lg */}
+            <div className="flex lg:hidden items-center gap-2 self-end">
+                <button
+                    onClick={() => setMobileView("list")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${mobileView === "list" ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"}`}
+                >
+                    <List className="w-3.5 h-3.5" /> List
+                </button>
+                <button
+                    onClick={() => setMobileView("map")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${mobileView === "map" ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"}`}
+                >
+                    <Map className="w-3.5 h-3.5" /> Map
+                </button>
+            </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full h-[78vh] relative">
             {/* Scrollable result cards */}
-            <div className="flex flex-col gap-4 overflow-y-auto pr-1 pb-12">
+            <div className={`flex flex-col gap-4 overflow-y-auto pr-1 pb-12 ${mobileView === "map" ? "hidden lg:flex" : "flex"}`}>
                 {results.map((res) => (
                     <Link
                         href={`/place/${res.id}`}
                         key={res.id}
-                        className="block flex-shrink-0 w-full bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-emerald-200 transition-all group overflow-hidden"
+                        className="block flex-shrink-0 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group overflow-hidden"
                     >
                         <div className="flex gap-0">
                             {/* Photo thumbnail — only if real URL */}
@@ -96,7 +112,7 @@ export default function SearchResults({ query }: { query: string }) {
                             <div className="flex flex-col flex-1 min-w-0 p-5 min-h-[140px]">
                                 {/* Name + status */}
                                 <div className="flex justify-between items-start gap-2">
-                                    <h2 className="text-lg font-bold text-gray-900 group-hover:text-emerald-600 transition-colors leading-tight">
+                                    <h2 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight">
                                         {res.name || "Unknown Place"}
                                     </h2>
                                     <div className="flex-shrink-0">
@@ -112,8 +128,8 @@ export default function SearchResults({ query }: { query: string }) {
                                 )}
 
                                 {/* Details block */}
-                                <div className="mt-3 space-y-1.5 text-sm text-gray-500 flex-1">
-                                    <p className="flex items-start gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                                <div className="mt-3 space-y-1.5 text-sm text-gray-500 dark:text-gray-400 flex-1">
+                                    <p className="flex items-start gap-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
                                         Source: {res.source || "Unknown"}
                                     </p>
                                     <p className="flex items-start gap-1.5">
@@ -159,9 +175,23 @@ export default function SearchResults({ query }: { query: string }) {
 
                                 {/* Confidence footer */}
                                 {(res.status === "open" || res.status === "closed") && (
-                                    <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                                        Conf: {((res.confidence ?? 0) * 100).toFixed(0)}%
-                                    </p>
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all ${
+                                                    (res.confidence ?? 0) > 0.75
+                                                        ? "bg-emerald-500"
+                                                        : (res.confidence ?? 0) >= 0.5
+                                                        ? "bg-amber-400"
+                                                        : "bg-rose-400"
+                                                }`}
+                                                style={{ width: `${((res.confidence ?? 0) * 100).toFixed(0)}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 shrink-0">
+                                            {((res.confidence ?? 0) * 100).toFixed(0)}%
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -170,9 +200,10 @@ export default function SearchResults({ query }: { query: string }) {
             </div>
 
             {/* Map panel */}
-            <div className="hidden lg:block h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 bg-white">
+            <div className={`h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
                 <ResultsMap results={results} />
             </div>
+        </div>
         </div>
     );
 }

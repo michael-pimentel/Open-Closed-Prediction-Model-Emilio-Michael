@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { geocodeCity } from "../lib/CitySearchService";
+import { formatTag } from "../lib/formatters";
 import { searchPlaces } from "../lib/api";
 import type { SearchResultType } from "./SearchResults";
 import StatusBadge from "./StatusBadge";
@@ -277,7 +278,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
                                 : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
                         }`}
                     >
-                        {cat}
+                        {formatTag(cat)}
                     </button>
                 ))}
 
@@ -363,7 +364,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
                                     {res.category && (
                                         <span className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400 font-bold uppercase tracking-wider">
                                             <Tag className="w-3 h-3" />
-                                            {res.category}
+                                            {formatTag(res.category!)}
                                         </span>
                                     )}
 

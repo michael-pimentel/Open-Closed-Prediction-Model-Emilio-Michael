@@ -51,14 +51,6 @@ export default function Home() {
                     <SearchBar />
                 </div>
 
-                <div className="pt-8 flex gap-4 text-sm font-semibold tracking-wide">
-                    <a
-                        href="/cities"
-                        className="text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm px-6 py-2 rounded-full shadow-sm hover:shadow transition-all"
-                    >
-                        Cities Mode
-                    </a>
-                </div>
             </motion.div>
 
         </div>

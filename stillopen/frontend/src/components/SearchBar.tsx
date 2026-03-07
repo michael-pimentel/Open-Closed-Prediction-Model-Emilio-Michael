@@ -32,26 +32,6 @@ function parseCityQuery(input: string): { term: string; city: string } | null {
     return null;
 }
 
-// Curated city list for autocomplete in the location field and "X in Y" completions
-const KNOWN_CITIES = [
-    "Santa Cruz, CA", "San Francisco, CA", "Sacramento, CA", "San Jose, CA",
-    "Oakland, CA", "Berkeley, CA", "Los Angeles, CA", "Fresno, CA",
-    "Modesto, CA", "Stockton, CA", "Santa Barbara, CA", "Santa Rosa, CA",
-    "Monterey, CA", "Salinas, CA", "Bakersfield, CA", "San Diego, CA",
-    "Long Beach, CA", "Anaheim, CA", "Riverside, CA", "Irvine, CA",
-    "Chicago, IL", "Reno, NV", "Las Vegas, NV", "Phoenix, AZ",
-    "Denver, CO", "Portland, OR", "Seattle, WA", "New York City, NY",
-    "Austin, TX", "Houston, TX", "Dallas, TX", "Atlanta, GA",
-    "Miami, FL", "Boston, MA", "Nashville, TN", "Minneapolis, MN",
-];
-
-function filterCities(input: string, max = 6): string[] {
-    const lower = input.trim().toLowerCase();
-    if (lower.length < 2) return [];
-    return KNOWN_CITIES
-        .filter(c => c.toLowerCase().startsWith(lower) || c.toLowerCase().includes(lower))
-        .slice(0, max);
-}
 
 export default function SearchBar({ compact = false }: { compact?: boolean }) {
     const [query, setQuery] = useState("");
@@ -67,19 +47,40 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
     // Detect "X in Y" pattern live as the user types in the main field
     const cityParsed = useMemo(() => parseCityQuery(query), [query]);
 
-    // Effective city: from the location field, or parsed from the query
-    const effectiveCity = location.trim() || cityParsed?.city || null;
+    // Nominatim-validated city name for the "X in Y" pattern
+    const [detectedCity, setDetectedCity] = useState<string | null>(null);
+
+    useEffect(() => {
+        const rawCity = cityParsed?.city;
+        if (!rawCity || rawCity.length < 2) {
+            setDetectedCity(null);
+            return;
+        }
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(rawCity)}&format=json&limit=1`,
+                    { headers: { "Accept-Language": "en" } }
+                );
+                const data = await res.json();
+                if (data.length > 0) {
+                    setDetectedCity(data[0].display_name.split(",")[0].trim());
+                } else {
+                    setDetectedCity(null);
+                }
+            } catch {
+                setDetectedCity(null);
+            }
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [cityParsed?.city]);
+
+    // Effective city: from the location field, or Nominatim-validated from the query
+    const effectiveCity = location.trim() || detectedCity || null;
     // Effective search term: left-side of "X in Y", or the full query
     const effectiveTerm = cityParsed ? cityParsed.term : query;
 
     const hasCitySuggestion = effectiveCity !== null && effectiveTerm.trim().length >= 2;
-
-    // City autocomplete: used when location field is active, OR for "X in Y" city completions
-    const citySuggestions = useMemo(() => {
-        if (activeInput === "location") return filterCities(location, 7);
-        if (cityParsed) return filterCities(cityParsed.city, 4);
-        return [];
-    }, [activeInput, location, cityParsed]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -142,10 +143,7 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
         persistRecent(query);
     };
 
-    const showDropdownContent = showDropdown && (
-        (activeInput === "location" && citySuggestions.length > 0) ||
-        (activeInput === "query" && (results.length > 0 || hasCitySuggestion || citySuggestions.length > 0))
-    );
+    const showDropdownContent = showDropdown && activeInput === "query" && (results.length > 0 || hasCitySuggestion);
 
     return (
         <div className={`relative w-full ${compact ? 'max-w-md' : 'max-w-3xl px-6'}`} ref={dropdownRef}>
@@ -163,7 +161,7 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
                     <input
                         type="text"
                         className={`block w-full text-gray-900 dark:text-white bg-transparent placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none transition-all ${compact ? 'pl-11 pr-4 py-2' : 'pl-16 pr-4 py-5'}`}
-                        placeholder="Business, place, or &quot;coffee in Santa Cruz&quot;..."
+                        placeholder="Places in mind?"
                         value={query}
                         onChange={(e) => {
                             setQuery(e.target.value);
@@ -244,30 +242,6 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
                     >
                         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-[0_12px_44px_rgba(0,0,0,0.22)] dark:shadow-[0_0_35px_rgba(255,255,255,0.12)] border border-gray-100 dark:border-gray-800 overflow-hidden ring-1 ring-black ring-opacity-5 dark:ring-white/10 max-h-96 overflow-y-auto">
 
-                            {/* === LOCATION FIELD MODE: show city autocomplete === */}
-                            {activeInput === "location" && citySuggestions.length > 0 && (
-                                <>
-                                    <div className="px-4 pt-3 pb-1">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
-                                            Cities
-                                        </span>
-                                    </div>
-                                    {citySuggestions.map((city) => (
-                                        <button
-                                            key={city}
-                                            className="w-full px-6 py-3 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0"
-                                            onClick={() => {
-                                                setLocation(city);
-                                                setShowDropdown(false);
-                                            }}
-                                        >
-                                            <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
-                                            <span className="font-semibold text-gray-900 dark:text-white text-sm">{city}</span>
-                                        </button>
-                                    ))}
-                                </>
-                            )}
-
                             {/* === QUERY FIELD MODE === */}
                             {activeInput === "query" && (
                                 <>
@@ -289,35 +263,10 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
                                         </button>
                                     )}
 
-                                    {/* City completions for partial "X in Y" city part */}
-                                    {cityParsed && citySuggestions.length > 0 && (
-                                        <>
-                                            <div className="px-4 pt-2 pb-1">
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
-                                                    City suggestions
-                                                </span>
-                                            </div>
-                                            {citySuggestions.map((city) => (
-                                                <button
-                                                    key={city}
-                                                    className="w-full px-6 py-2.5 text-left hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0"
-                                                    onClick={() => handleCitySearchClick(cityParsed.term, city)}
-                                                >
-                                                    <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
-                                                    <span className="text-sm text-gray-900 dark:text-white">
-                                                        <span className="font-semibold">{cityParsed.term}</span>
-                                                        <span className="text-gray-500 dark:text-gray-400"> in </span>
-                                                        <span className="font-semibold">{city}</span>
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
-
-                                    {/* Regular place results — separated when city suggestions also showing */}
+                                    {/* Regular place results — separated when city suggestion also showing */}
                                     {results.length > 0 && (
                                         <>
-                                            {(hasCitySuggestion || citySuggestions.length > 0) && (
+                                            {hasCitySuggestion && (
                                                 <div className="px-4 pt-2 pb-1">
                                                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
                                                         Places

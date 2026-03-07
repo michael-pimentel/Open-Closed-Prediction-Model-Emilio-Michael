@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { searchPlaces } from "../lib/api";
+import { formatTag } from "../lib/formatters";
 import StatusBadge from "./StatusBadge";
 import Link from "next/link";
 import { Loader2, Globe, Clock, MapPin, Phone, Tag, List, Map } from "lucide-react";
@@ -127,7 +128,7 @@ export default function SearchResults({ query, location }: { query: string; loca
                                     {/* Category */}
                                     {res.category && (
                                         <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-700 font-bold uppercase tracking-wider">
-                                            <Tag className="w-3 h-3" /> {res.category}
+                                            <Tag className="w-3 h-3" /> {formatTag(res.category)}
                                         </span>
                                     )}
 

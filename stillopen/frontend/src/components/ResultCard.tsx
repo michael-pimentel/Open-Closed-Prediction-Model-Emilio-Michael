@@ -1,6 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import { CheckCircle, XCircle, AlertCircle, Info, Globe, Clock, MapPin, Phone, Tag, Database } from "lucide-react";
+import { formatTag } from "../lib/formatters";
 
 export interface PlaceDetail {
     id: string;
@@ -80,7 +81,7 @@ export default function ResultCard({ data }: ResultProps) {
                             <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
                                 {data.category && (
                                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold uppercase tracking-wider">
-                                        <Tag className="w-3 h-3" /> {data.category}
+                                        <Tag className="w-3 h-3" /> {formatTag(data.category)}
                                     </span>
                                 )}
                                 {data.source && (

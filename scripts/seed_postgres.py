@@ -59,13 +59,27 @@ def seed_osm(cur, osm_path, existing_ids):
             except Exception:
                 meta = {}
 
+        address = item.get("address", "").strip()
+
+        # Parse city/state from address string for metadata
+        city, state = "", ""
+        parts = [p.strip() for p in address.split(",")]
+        if len(parts) >= 2:
+            city = parts[-2] if len(parts) > 1 else ""
+            state = parts[-1] if len(parts) > 0 else ""
+
         metadata = {
             "websites": meta.get("websites", []),
             "socials":  meta.get("socials", []),
             "phones":   meta.get("phones", []),
             "confidence": float(meta.get("confidence", 0.5)),
             "open": int(item.get("open", 1)),
+            "city": city,
+            "state": state,
         }
+        # Store full address in metadata so canonical_metadata.py can use it
+        if address:
+            metadata["address"] = address
 
         lat = item.get("lat")
         lon = item.get("lon")
@@ -75,6 +89,7 @@ def seed_osm(cur, osm_path, existing_ids):
             pid,
             item.get("name", "Unknown"),
             item.get("category", "unknown"),
+            address or None,
             "osm",
             geom,
             json.dumps(metadata),
@@ -84,12 +99,12 @@ def seed_osm(cur, osm_path, existing_ids):
         print("  ✓ OSM: all records already present, nothing to insert")
         return 0, 0
 
-    closed = sum(1 for r in records if json.loads(r[5]).get("open") == 0)
+    closed = sum(1 for r in records if json.loads(r[6]).get("open") == 0)
     execute_values(cur, """
-        INSERT INTO places (place_id, name, category, source, geom, metadata_json)
+        INSERT INTO places (place_id, name, category, address, source, geom, metadata_json)
         VALUES %s
         ON CONFLICT (place_id) DO NOTHING
-    """, records, template="(%s, %s, %s, %s, ST_GeomFromEWKT(%s), %s::jsonb)")
+    """, records, template="(%s, %s, %s, %s, %s, ST_GeomFromEWKT(%s), %s::jsonb)")
 
     return len(records), closed
 

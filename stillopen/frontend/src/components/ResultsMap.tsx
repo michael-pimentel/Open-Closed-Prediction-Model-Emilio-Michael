@@ -7,6 +7,7 @@ import StatusBadge from "./StatusBadge";
 import { MapPin, Clock, Globe, Phone } from "lucide-react";
 import type { SearchResultType } from "./SearchResults";
 import type { GeoJsonObject } from "geojson";
+import { formatTag } from "../lib/formatters";
 
 function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
     const map = useMap();
@@ -126,7 +127,7 @@ export default function ResultsMap({ results, boundary }: ResultsMapProps) {
 
                                     {res.category && (
                                         <span className="inline-block text-[10px] uppercase font-bold tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                            {res.category}
+                                            {formatTag(res.category)}
                                         </span>
                                     )}
 

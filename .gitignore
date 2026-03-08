@@ -38,4 +38,5 @@ node_modules/
 out/
 build/
 .npm
+uvicorn.log 
 frontend.log

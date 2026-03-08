@@ -92,8 +92,8 @@ export default function ResultsMap({ results, boundary }: ResultsMapProps) {
                 const color = isOpen
                     ? "#10b981"
                     : isClosed
-                    ? "#f43f5e"
-                    : "#6b7280";
+                        ? "#f43f5e"
+                        : "#6b7280";
 
                 return (
                     <CircleMarker

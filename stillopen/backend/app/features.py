@@ -6,6 +6,21 @@ from datetime import datetime
 
 REFERENCE_DATE = datetime(2025, 2, 24)
 
+# Categories with historically high business turnover / closure rates
+HIGH_TURNOVER_CATEGORIES = {
+    'restaurant', 'cafe', 'bar', 'pub', 'fast_food', 'fast food', 'food_court',
+    'clothes', 'clothing', 'shoes', 'boutique', 'fashion',
+    'beauty', 'beauty salon', 'hair salon', 'hairdresser', 'nail_salon', 'nail salon',
+    'dry_cleaning', 'dry cleaning', 'laundry',
+    'gift', 'gift shop', 'souvenir', 'toy', 'toys',
+    'furniture', 'home_goods', 'home goods', 'interior_decoration',
+    'video_games', 'video games', 'bookstore', 'books',
+    'department_store', 'department store',
+    'ice_cream', 'ice cream', 'dessert', 'bakery',
+    'florist', 'flowers', 'art_gallery', 'art gallery',
+    'antique', 'antiques', 'vintage',
+}
+
 def safe_parse_struct(x):
     if x is None:
         return None
@@ -185,5 +200,8 @@ def compute_features(record: dict, artifacts: dict = None) -> dict:
     
     # ── 10. Binary Indicators ──
     features['is_stale'] = 1 if days_since_update > 180 else 0
+
+    # ── 11. High-Turnover Category ──
+    features['high_turnover_category'] = 1 if primary_category.lower() in HIGH_TURNOVER_CATEGORIES else 0
 
     return features

@@ -80,63 +80,81 @@ export default function CitySearchResults({ query, city }: { query: string; city
         setCategoryFilter(null);
 
         async function run() {
-            const geoResult = await geocodeCity(city);
-            if (!geoResult) {
-                if (!cancelled) {
-                    setError(
-                        `Could not find city "${city}". Try adding a state abbreviation, e.g. "${city}, CA".`
+            try {
+                const geoResult = await geocodeCity(city);
+
+                if (!geoResult) {
+                    // FALLBACK: If geocoding fails (but NOT throttled), try searching directly by city name in our DB
+                    if (!cancelled) {
+                        try {
+                            const batch = await searchPlaces(query, BATCH_SIZE, undefined, 0, city);
+                            if (batch && batch.length > 0) {
+                                setResults(batch);
+                                setResolvedCity(city);
+                                setLoading(false);
+                                return;
+                            }
+                        } catch (e) {
+                            console.error("Fallback search failed:", e);
+                        }
+
+                        setError(
+                            `Could not find city "${city}". Try adding a state abbreviation, e.g. "${city}, CA".`
+                        );
+                        setLoading(false);
+                    }
+                    return;
+                }
+                if (cancelled) return;
+
+                // Use first segment of display name as the short city name
+                setResolvedCity(geoResult.displayName.split(",")[0].trim());
+                setBoundary(geoResult.boundary);
+
+                // Paginate until we hit MAX_RESULTS or run out of data.
+                let offset = 0;
+                let allResults: SearchResultType[] = [];
+
+                while (offset < MAX_RESULTS) {
+                    if (cancelled) return;
+                    const batch: SearchResultType[] = await searchPlaces(
+                        query,
+                        BATCH_SIZE,
+                        geoResult.bbox,
+                        offset
                     );
+                    if (batch.length === 0) break;
+
+                    const withinCity = geoResult.boundary
+                        ? batch.filter((r) =>
+                            r.lat != null && r.lon != null
+                                ? pointInGeoJSON(r.lat!, r.lon!, geoResult.boundary as object)
+                                : true
+                        )
+                        : batch;
+
+                    allResults = [...allResults, ...withinCity];
+                    offset += BATCH_SIZE;
+                    if (batch.length < BATCH_SIZE) break;
+                }
+
+                if (!cancelled) {
+                    setResults(allResults);
                     setLoading(false);
                 }
-                return;
-            }
-            if (cancelled) return;
-
-            // Use first segment of display name as the short city name
-            setResolvedCity(geoResult.displayName.split(",")[0].trim());
-            setBoundary(geoResult.boundary);
-
-            // Paginate until we hit MAX_RESULTS or run out of data.
-            // The backend already filters by bbox + keyword so batches are small.
-            let offset = 0;
-            let allResults: SearchResultType[] = [];
-
-            while (offset < MAX_RESULTS) {
-                if (cancelled) return;
-                const batch: SearchResultType[] = await searchPlaces(
-                    query,
-                    BATCH_SIZE,
-                    geoResult.bbox,
-                    offset
-                );
-                if (batch.length === 0) break;
-
-                // Filter to places actually inside the city polygon
-                const withinCity = geoResult.boundary
-                    ? batch.filter((r) =>
-                          r.lat != null && r.lon != null
-                              ? pointInGeoJSON(r.lat!, r.lon!, geoResult.boundary as object)
-                              : true
-                      )
-                    : batch;
-
-                allResults = [...allResults, ...withinCity];
-                offset += BATCH_SIZE;
-                if (batch.length < BATCH_SIZE) break; // last page
-            }
-
-            if (!cancelled) {
-                setResults(allResults);
-                setLoading(false);
+            } catch (err: any) {
+                if (!cancelled) {
+                    if (err.message === "THROTTLED") {
+                        setError("Service temporarily throttled. Please try again in 60 seconds.");
+                    } else {
+                        setError(err instanceof Error ? err.message : "An unknown error occurred.");
+                    }
+                    setLoading(false);
+                }
             }
         }
 
-        run().catch((err) => {
-            if (!cancelled) {
-                setError(err instanceof Error ? err.message : "An unknown error occurred.");
-                setLoading(false);
-            }
-        });
+        run();
 
         return () => {
             cancelled = true;
@@ -260,11 +278,10 @@ export default function CitySearchResults({ query, city }: { query: string; city
             <div className="flex flex-wrap items-center gap-2">
                 <button
                     onClick={() => setCategoryFilter(null)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
-                        !categoryFilter
-                            ? "bg-emerald-500 text-white border-emerald-500"
-                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
-                    }`}
+                    className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${!categoryFilter
+                        ? "bg-emerald-500 text-white border-emerald-500"
+                        : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
+                        }`}
                 >
                     All
                 </button>
@@ -272,11 +289,10 @@ export default function CitySearchResults({ query, city }: { query: string; city
                     <button
                         key={cat}
                         onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
-                            categoryFilter === cat
-                                ? "bg-emerald-500 text-white border-emerald-500"
-                                : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
-                        }`}
+                        className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${categoryFilter === cat
+                            ? "bg-emerald-500 text-white border-emerald-500"
+                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
+                            }`}
                     >
                         {formatTag(cat)}
                     </button>
@@ -288,11 +304,10 @@ export default function CitySearchResults({ query, city }: { query: string; city
                         <button
                             key={key}
                             onClick={() => setSortKey(key)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
-                                sortKey === key
-                                    ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white"
-                                    : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400"
-                            }`}
+                            className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${sortKey === key
+                                ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white"
+                                : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400"
+                                }`}
                         >
                             {key === "confidence" ? "Confidence" : key === "name" ? "Name" : "Open first"}
                         </button>
@@ -304,21 +319,19 @@ export default function CitySearchResults({ query, city }: { query: string; city
             <div className="flex lg:hidden items-center gap-2 self-end">
                 <button
                     onClick={() => setMobileView("list")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
-                        mobileView === "list"
-                            ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
-                    }`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${mobileView === "list"
+                        ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                        : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
+                        }`}
                 >
                     <List className="w-3.5 h-3.5" /> List
                 </button>
                 <button
                     onClick={() => setMobileView("map")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
-                        mobileView === "map"
-                            ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
-                    }`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${mobileView === "map"
+                        ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                        : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
+                        }`}
                 >
                     <MapIcon className="w-3.5 h-3.5" /> Map
                 </button>
@@ -328,9 +341,8 @@ export default function CitySearchResults({ query, city }: { query: string; city
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full h-[78vh] relative">
                 {/* Scrollable result cards */}
                 <div
-                    className={`flex flex-col gap-3 overflow-y-auto pr-1 pb-12 ${
-                        mobileView === "map" ? "hidden lg:flex" : "flex"
-                    }`}
+                    className={`flex flex-col gap-3 overflow-y-auto pr-1 pb-12 ${mobileView === "map" ? "hidden lg:flex" : "flex"
+                        }`}
                 >
                     {displayedResults.map((res) => (
                         <Link
@@ -381,13 +393,12 @@ export default function CitySearchResults({ query, city }: { query: string; city
                                         <div className="mt-auto pt-2 flex items-center gap-2">
                                             <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all ${
-                                                        (res.confidence ?? 0) > 0.75
-                                                            ? "bg-emerald-500"
-                                                            : (res.confidence ?? 0) >= 0.5
+                                                    className={`h-full rounded-full transition-all ${(res.confidence ?? 0) > 0.75
+                                                        ? "bg-emerald-500"
+                                                        : (res.confidence ?? 0) >= 0.5
                                                             ? "bg-amber-400"
                                                             : "bg-rose-400"
-                                                    }`}
+                                                        }`}
                                                     style={{
                                                         width: `${((res.confidence ?? 0) * 100).toFixed(0)}%`,
                                                     }}
@@ -411,9 +422,8 @@ export default function CitySearchResults({ query, city }: { query: string; city
 
                 {/* Map panel */}
                 <div
-                    className={`h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 ${
-                        mobileView === "map" ? "block" : "hidden lg:block"
-                    }`}
+                    className={`h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 ${mobileView === "map" ? "block" : "hidden lg:block"
+                        }`}
                 >
                     <ResultsMap results={displayedResults} boundary={boundary} />
                 </div>

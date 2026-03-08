@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { searchPlaces } from "../lib/api";
 import { formatTag, fudgeConfidence } from "../lib/formatters";
 import StatusBadge from "./StatusBadge";
 import Link from "next/link";
-import { Loader2, Globe, Clock, MapPin, Phone, Tag, List, Map } from "lucide-react";
+import { Loader2, Globe, Clock, MapPin, Phone, Tag, List, Map, WifiOff } from "lucide-react";
 import { useAppContext } from "../lib/AppContext";
 import dynamic from "next/dynamic";
 
@@ -27,14 +27,30 @@ export interface SearchResultType {
     source?: string;
     metadata_json?: Record<string, unknown>;
     status: string;
-    confidence: number;
+    confidence?: number | null;
+    prediction_type?: string;
     website?: string;
     phone?: string;
     opening_hours?: string;
     photo_url?: string;
+    website_status?: string;
+    website_checked_at?: string;
+    website_http_code?: number;
 }
 
 export default function SearchResults({ query, location }: { query: string; location?: string }) {
+    return (
+        <Suspense fallback={
+            <div className="flex justify-center p-12 w-full">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+            </div>
+        }>
+            <SearchResultsContent query={query} location={location} />
+        </Suspense>
+    );
+}
+
+function SearchResultsContent({ query, location }: { query: string; location?: string }) {
     const [results, setResults] = useState<SearchResultType[]>([]);
     const [loading, setLoading] = useState(false);
     const [mobileView, setMobileView] = useState<"list" | "map">("list");
@@ -132,7 +148,12 @@ export default function SearchResults({ query, location }: { query: string; loca
                                             </h2>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
-                                            <StatusBadge status={res.status} />
+                                            <StatusBadge status={res.status} predictionType={res.prediction_type} />
+                                            {res.website_status === "likely_closed" && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                                                    <WifiOff className="w-2.5 h-2.5" /> Website offline
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
@@ -190,21 +211,25 @@ export default function SearchResults({ query, location }: { query: string; loca
                                     </div>
 
                                     {/* Confidence footer */}
-                                    {(res.status === "open" || res.status === "closed") && (
+                                    {res.prediction_type === "likely_open" ? (
+                                        <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                                            Insufficient data
+                                        </p>
+                                    ) : res.confidence != null && (res.status === "open" || res.status === "closed") && (
                                         <div className="mt-3 flex items-center gap-2">
                                             <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all ${(res.confidence ?? 0) > 0.75
+                                                    className={`h-full rounded-full transition-all ${res.confidence > 0.75
                                                         ? "bg-emerald-500"
-                                                        : (res.confidence ?? 0) >= 0.5
+                                                        : res.confidence >= 0.5
                                                             ? "bg-amber-400"
                                                             : "bg-rose-400"
                                                         }`}
-                                                    style={{ width: `${((res.confidence ?? 0) * 100).toFixed(0)}%` }}
+                                                    style={{ width: `${(res.confidence * 100).toFixed(0)}%` }}
                                                 />
                                             </div>
                                             <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 shrink-0">
-                                                {((res.confidence ?? 0) * 100).toFixed(0)}%
+                                                {(res.confidence * 100).toFixed(0)}%
                                             </span>
                                         </div>
                                     )}

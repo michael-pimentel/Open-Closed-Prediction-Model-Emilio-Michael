@@ -33,7 +33,7 @@
     "address": "1578 North Clybourn Avenue, Chicago, IL",
     "lat": 41.9102437,
     "lon": -87.6488384,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://burgerbarchicago.com/"
@@ -47,7 +47,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -178,7 +178,7 @@
     "address": "1529 North Milwaukee Avenue",
     "lat": 41.9093485,
     "lon": -87.6756067,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://saintalfred.com"
@@ -190,7 +190,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -288,7 +288,7 @@
     "address": "18 West Hubbard Street, Chicago, IL",
     "lat": 41.8902576,
     "lon": -87.6286217,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.henrys-chicago.com/"
@@ -302,7 +302,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -350,7 +350,7 @@
     "address": "18 West Hubbard Street, Chicago, IL",
     "lat": 41.8902387,
     "lon": -87.6284864,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.rec-room-chicago.com/"
@@ -364,7 +364,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -381,7 +381,7 @@
     "address": "500 West Monroe Street, Chicago, IL",
     "lat": 41.8807756,
     "lon": -87.6406322,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.venicecafechicago.com/"
@@ -395,7 +395,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -412,7 +412,7 @@
     "address": "1482 North Milwaukee Avenue, Chicago, IL",
     "lat": 41.9087624,
     "lon": -87.6751741,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.kizuki.com/"
@@ -426,7 +426,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -470,7 +470,7 @@
     "address": "1111 West Lake Street, Chicago, IL",
     "lat": 41.8852921,
     "lon": -87.6550709,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://elevenelevenchicago.com/"
@@ -484,7 +484,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -530,7 +530,7 @@
     "address": "1480 North Milwaukee Avenue, Chicago, IL",
     "lat": 41.9087319,
     "lon": -87.6751244,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.umamiburger.com/locations/wicker-park/"
@@ -544,7 +544,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -561,7 +561,7 @@
     "address": "2273 North Lincoln Avenue, Chicago, IL",
     "lat": 41.9235791,
     "lon": -87.6457972,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.nighthawkam.com/"
@@ -575,7 +575,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -619,7 +619,7 @@
     "address": "951 West Fulton Market, Chicago, IL",
     "lat": 41.8865666,
     "lon": -87.6518679,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.stclairsupperclub.com/"
@@ -633,7 +633,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -1129,7 +1129,7 @@
     "address": "401 South State Street, Chicago, IL",
     "lat": 41.8763352,
     "lon": -87.6272182,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://web.archive.org/web/20191230084005/http://www.robertmorris.edu/"
@@ -1141,7 +1141,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -1351,7 +1351,7 @@
     "address": "280 King Street, CA",
     "lat": 37.7769972,
     "lon": -122.3936898,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.starbucks.com/store-locator/store/13947/king-4th-street-280-king-street-san-francisco-ca-941071702-us"
@@ -1367,7 +1367,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2022,7 +2022,7 @@
     "address": "4238 18th Street",
     "lat": 37.7608752,
     "lon": -122.4369376,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://vicocavone.com/"
@@ -2034,7 +2034,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2192,7 +2192,7 @@
     "address": "576 Haight Street",
     "lat": 37.7720644,
     "lon": -122.431664,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.memphisminnies.com/"
@@ -2206,7 +2206,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2277,7 +2277,7 @@
     "address": "607 Geary Street, San Francisco, CA",
     "lat": 37.7866045,
     "lon": -122.4134239,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.kinarafusionkitchen.com/"
@@ -2291,7 +2291,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2476,7 +2476,7 @@
     "address": "1052 Folsom Street, San Francisco, CA",
     "lat": 37.777636,
     "lon": -122.4069519,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.fonduecowboy.com/"
@@ -2488,7 +2488,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2505,7 +2505,7 @@
     "address": "609 Hayes Street",
     "lat": 37.7763412,
     "lon": -122.4264834,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.petitcrenn.com/"
@@ -2517,7 +2517,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2652,7 +2652,7 @@
     "address": "780 Market Street, San Francisco, CA",
     "lat": 37.7861393,
     "lon": -122.4056853,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.starbucks.com/store-locator/store/13347/4th-market-s-f-780-market-street-san-francisco-ca-941022514-us"
@@ -2668,7 +2668,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2743,7 +2743,7 @@
     "address": "1621 Polk Street, San Francisco, CA",
     "lat": 37.791885,
     "lon": -122.4211078,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.bobsdonutssf.com"
@@ -2759,7 +2759,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2888,7 +2888,7 @@
     "address": "303 2nd Street, San Francisco, CA",
     "lat": 37.7853781,
     "lon": -122.395962,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.leesdeli.com/"
@@ -2905,7 +2905,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -2949,7 +2949,7 @@
     "address": "242 King Street",
     "lat": 37.7775777,
     "lon": -122.39298,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.umami.com/umami-burger/eats/umami-soma/"
@@ -2963,7 +2963,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3063,7 +3063,7 @@
     "address": "2526 3rd Street, San Francisco, CA",
     "lat": 37.7575397,
     "lon": -122.388478,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.hardknoxcafe.com/3rd-st"
@@ -3075,7 +3075,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3289,7 +3289,7 @@
     "address": "120 4th Street, San Francisco, CA",
     "lat": 37.7841729,
     "lon": -122.404198,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.starbucks.com/store-locator/store/16824/120-4th-street-120-4th-street-san-francisco-ca-941033004-us"
@@ -3307,7 +3307,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3436,7 +3436,7 @@
     "address": "555 2nd Street",
     "lat": 37.7825015,
     "lon": -122.3926613,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.thelordgeorge.com/"
@@ -3448,7 +3448,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3465,7 +3465,7 @@
     "address": "2389 Mission Street",
     "lat": 37.7589506,
     "lon": -122.4189279,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.brunossf.com/"
@@ -3479,7 +3479,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3550,7 +3550,7 @@
     "address": "88 2nd Street, San Francisco, CA",
     "lat": 37.7881436,
     "lon": -122.400181,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://mehfilsf.com"
@@ -3564,7 +3564,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3666,7 +3666,7 @@
     "address": "270 Columbus Avenue",
     "lat": 37.7977824,
     "lon": -122.4062868,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://etuttoqua.com"
@@ -3678,7 +3678,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3722,7 +3722,7 @@
     "address": "8 Trinity Place",
     "lat": 37.7901101,
     "lon": -122.4025145,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://theauwest.com/"
@@ -3734,7 +3734,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3751,7 +3751,7 @@
     "address": "803 Fillmore Street",
     "lat": 37.7769221,
     "lon": -122.4319095,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://alamosquareseafoodgrill.com"
@@ -3763,7 +3763,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3780,7 +3780,7 @@
     "address": "124 Ellis Street",
     "lat": 37.7855563,
     "lon": -122.4083525,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://hotelfusionsf.com/dining-and-drinks-mixed-hotel-fusion/"
@@ -3792,7 +3792,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -3944,7 +3944,7 @@
     "address": "1 Tillman Place",
     "lat": 37.7892717,
     "lon": -122.4057916,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://hopsandhominy.com/"
@@ -3956,7 +3956,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4000,7 +4000,7 @@
     "address": "699 Delancey Street",
     "lat": 37.7832603,
     "lon": -122.3891406,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "www.delanceystreetfoundation.org/entercafe.php"
@@ -4012,7 +4012,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4176,7 +4176,7 @@
     "address": "138 Minna Street, San Francisco",
     "lat": 37.786844,
     "lon": -122.400328,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.johncolins.com/"
@@ -4190,7 +4190,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4288,7 +4288,7 @@
     "address": "2500 Mission Street",
     "lat": 37.7568974,
     "lon": -122.419059,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://locator.chase.com/ca/san-francisco/2500-mission-st"
@@ -4306,7 +4306,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4350,7 +4350,7 @@
     "address": "212 Ritch Street",
     "lat": 37.7806063,
     "lon": -122.3961622,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.darwincafesf.com"
@@ -4362,7 +4362,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4437,7 +4437,7 @@
     "address": "",
     "lat": 37.7979763,
     "lon": -122.4047921,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.a3atmosphere.com/"
@@ -4451,7 +4451,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4723,7 +4723,7 @@
     "address": "531 Castro Street, San Francisco, CA",
     "lat": 37.7603515,
     "lon": -122.4348101,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.hamburgermarys.com/sanfrancisco/"
@@ -4737,7 +4737,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4781,7 +4781,7 @@
     "address": "18th Street",
     "lat": 37.7607565,
     "lon": -122.4357775,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://thaichefsf.com"
@@ -4795,7 +4795,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4812,7 +4812,7 @@
     "address": "34 Ellis Street, San Francisco, CA",
     "lat": 37.7857668,
     "lon": -122.406752,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.cb2.com/stores/union-square/str53"
@@ -4826,7 +4826,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -4843,7 +4843,7 @@
     "address": "3499 16th Street, San Francisco, CA",
     "lat": 37.7642726,
     "lon": -122.430737,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.kitchenstorysf.com/s"
@@ -4860,7 +4860,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -5130,7 +5130,7 @@
     "address": "88 Division Street, San Francisco, CA",
     "lat": 37.7699755,
     "lon": -122.403,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.saapver.com/"
@@ -5144,7 +5144,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -5470,7 +5470,7 @@
     "address": "1592 Market Street, San Francisco",
     "lat": 37.7744675,
     "lon": -122.4205077,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://marketstreetcycles.com"
@@ -5482,7 +5482,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -5613,7 +5613,7 @@
     "address": "2944 16th Street",
     "lat": 37.7652789,
     "lon": -122.4184856,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://chilelindo.com/"
@@ -5625,7 +5625,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -5750,7 +5750,7 @@
     "address": "",
     "lat": 37.7878174,
     "lon": -122.4080411,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://tixbayarea.com/"
@@ -5762,7 +5762,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -5930,7 +5930,7 @@
     "address": "71 5th Street, San Francisco, CA",
     "lat": 37.7831569,
     "lon": -122.4067877,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://kaisensushi.com"
@@ -5945,7 +5945,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -5962,7 +5962,7 @@
     "address": "150 Van Ness Avenue, San Francisco, CA",
     "lat": 37.7770718,
     "lon": -122.4194043,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://sfmassageenvy.com"
@@ -5980,7 +5980,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -6051,7 +6051,7 @@
     "address": "300 Grant Avenue, San Francisco, CA",
     "lat": 37.7898611,
     "lon": -122.405329,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://stores.arcteryx.com/san-francisco"
@@ -6067,7 +6067,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -6084,7 +6084,7 @@
     "address": "300 Grant Avenue, San Francisco, CA",
     "lat": 37.7899194,
     "lon": -122.4053426,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.jinwang.net/"
@@ -6098,7 +6098,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -6536,7 +6536,7 @@
     "address": "705 Geary Street, San Francisco, CA",
     "lat": 37.7864003,
     "lon": -122.4149658,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://elephantsushi.com/"
@@ -6550,7 +6550,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -6594,7 +6594,7 @@
     "address": "1136 Valencia Street, San Francisco",
     "lat": 37.754681,
     "lon": -122.4210745,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.adamsgrubtruck.com/"
@@ -6606,7 +6606,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -6677,7 +6677,7 @@
     "address": "303 2nd Street, San Francisco, CA",
     "lat": 37.7851497,
     "lon": -122.395515,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.fearlesscoffee.com/"
@@ -6691,7 +6691,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -7802,7 +7802,7 @@
     "address": "1050 26th Street, San Francisco, CA",
     "lat": 37.7515396,
     "lon": -122.390145,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://harmonicbrewing.com/mothership"
@@ -7816,7 +7816,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -7949,7 +7949,7 @@
     "address": "",
     "lat": 37.7837394,
     "lon": -122.405631,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.cinemark.com/theatre-467"
@@ -7961,7 +7961,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -8391,7 +8391,7 @@
     "address": "253 Post Street, San Francisco, CA",
     "lat": 37.7884822,
     "lon": -122.4061409,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.therealreal.com/sf"
@@ -8405,7 +8405,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -9293,7 +9293,7 @@
     "address": "325 Mason Street",
     "lat": 37.7866383,
     "lon": -122.4099463,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.showcaseflowers.com/"
@@ -9309,7 +9309,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -9492,7 +9492,7 @@
     "address": "149 New Montgomery Street, San Francisco, CA",
     "lat": 37.787033,
     "lon": -122.3998207,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.dickblick.com/"
@@ -9506,7 +9506,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -9909,7 +9909,7 @@
     "address": "1455 Market Street, San Francisco, CA",
     "lat": 37.7759054,
     "lon": -122.417985,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://kagawayaudon.com/"
@@ -9921,7 +9921,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -9992,7 +9992,7 @@
     "address": "2915 16th Street",
     "lat": 37.7650358,
     "lon": -122.4179472,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.ewastesf.com/"
@@ -10004,7 +10004,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10185,7 +10185,7 @@
     "address": "1831 Market Street, San Francisco, CA",
     "lat": 37.7710538,
     "lon": -122.42417,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.dlxsf.com/shop/"
@@ -10199,7 +10199,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10363,7 +10363,7 @@
     "address": "1301 Mission Street",
     "lat": 37.7760111,
     "lon": -122.414748,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://coffee-cultures.com/"
@@ -10377,7 +10377,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10475,7 +10475,7 @@
     "address": "1884 Market Street, San Francisco, CA",
     "lat": 37.771059,
     "lon": -122.4248365,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://ezcareclinic.com/"
@@ -10489,7 +10489,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10506,7 +10506,7 @@
     "address": "690 Indiana Street, San Francisco, CA",
     "lat": 37.7617474,
     "lon": -122.391791,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.kinkhao.com/"
@@ -10520,7 +10520,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10645,7 +10645,7 @@
     "address": "50 De Haro Street",
     "lat": 37.7693967,
     "lon": -122.402244,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.tokyomotosf.com/"
@@ -10659,7 +10659,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10705,7 +10705,7 @@
     "address": "",
     "lat": 37.7944061,
     "lon": -122.3993142,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.themelt.com/"
@@ -10722,7 +10722,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10739,7 +10739,7 @@
     "address": "362 Columbus Avenue, San Francisco, CA",
     "lat": 37.7985742,
     "lon": -122.407448,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://family-cafe-sf.square.site/"
@@ -10753,7 +10753,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10828,7 +10828,7 @@
     "address": "",
     "lat": 37.7851349,
     "lon": -122.4319008,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.sfchato.com"
@@ -10845,7 +10845,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -10862,7 +10862,7 @@
     "address": "",
     "lat": 37.785065,
     "lon": -122.4311337,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.kimochi-inc.org/kimochi-lounge"
@@ -10876,7 +10876,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11059,7 +11059,7 @@
     "address": "",
     "lat": 37.7922661,
     "lon": -122.4032401,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://theboysdeli.com/home/"
@@ -11071,7 +11071,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11289,7 +11289,7 @@
     "address": "",
     "lat": 37.7841577,
     "lon": -122.403138,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://margonetwork.com/locations/?location=margo-bitcoin-atm-san-francisco-ca",
@@ -11302,7 +11302,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11319,7 +11319,7 @@
     "address": "",
     "lat": 37.7841884,
     "lon": -122.403169,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.youtube.com/watch?v=x-bA2wRVndI"
@@ -11334,7 +11334,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11409,7 +11409,7 @@
     "address": "253 Church Street, San Francisco, CA",
     "lat": 37.7667547,
     "lon": -122.4287286,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://sanchasushi.com/"
@@ -11421,7 +11421,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11438,7 +11438,7 @@
     "address": "45 Kearny Street, San Francisco, CA",
     "lat": 37.7884759,
     "lon": -122.403741,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.jeffreys.toys/"
@@ -11454,7 +11454,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11527,7 +11527,7 @@
     "address": "Mason Street, San Francisco, CA",
     "lat": 37.7865944,
     "lon": -122.4101038,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://biscuitsandblues.com/"
@@ -11544,7 +11544,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11561,7 +11561,7 @@
     "address": "",
     "lat": 37.7957993,
     "lon": -122.4052299,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://eteasf.com/san-francisco-chinatown/"
@@ -11573,7 +11573,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11623,7 +11623,7 @@
     "address": "308 Kearny Street, San Francisco, CA",
     "lat": 37.7909506,
     "lon": -122.403968,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://superkitchen80.kwickmenu.com/"
@@ -11637,7 +11637,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11681,7 +11681,7 @@
     "address": "",
     "lat": 37.7856299,
     "lon": -122.430559,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://crownandcrumpet.com/"
@@ -11693,7 +11693,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -11737,7 +11737,7 @@
     "address": "1185 Market Street",
     "lat": 37.7788891,
     "lon": -122.414112,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.wholefoodsmarket.com/stores/trinity"
@@ -11755,7 +11755,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -12515,7 +12515,7 @@
     "address": "736 14th Street, San Francisco, CA",
     "lat": 37.7677787,
     "lon": -122.4297802,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://marudojo.com/"
@@ -12529,7 +12529,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -12604,7 +12604,7 @@
     "address": "",
     "lat": 37.7875711,
     "lon": -122.4055297,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.goorin.com/"
@@ -12620,7 +12620,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -12691,7 +12691,7 @@
     "address": "475 Gough Street, San Francisco, CA",
     "lat": 37.7776974,
     "lon": -122.423307,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.retrospecs.com/"
@@ -12705,7 +12705,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -13046,7 +13046,7 @@
     "address": "255 Sutter Street",
     "lat": 37.7895676,
     "lon": -122.4049201,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://athleta.gap.com/stores/ca/sanfrancisco/athleta-4146.html"
@@ -13062,7 +13062,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -13675,7 +13675,7 @@
     "address": "825 Market Street, San Francisco, CA",
     "lat": 37.7850762,
     "lon": -122.4063853,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.walgreens.com/locator/walgreens-825+market+st-san+francisco-ca-94103/id=3185"
@@ -13693,7 +13693,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -14156,7 +14156,7 @@
     "address": "799 Bryant Street",
     "lat": 37.7761619,
     "lon": -122.402152,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.aydeasf.com/"
@@ -14168,7 +14168,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -14376,7 +14376,7 @@
     "address": "San Francisco, CA",
     "lat": 37.7898462,
     "lon": -122.3933129,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.eastcutcrossing.com/"
@@ -14388,7 +14388,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -14600,7 +14600,7 @@
     "address": "655 Folsom Street",
     "lat": 37.7843788,
     "lon": -122.3977929,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.cantonsf.com/"
@@ -14614,7 +14614,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -14658,7 +14658,7 @@
     "address": "1075 California Street, San Francisco, CA",
     "lat": 37.7913824,
     "lon": -122.4120837,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.thehuntingtonhotel.com/"
@@ -14672,7 +14672,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -14716,7 +14716,7 @@
     "address": "300 Bartlett Street, San Francisco, CA",
     "lat": 37.7519813,
     "lon": -122.4198447,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://sfpl.org/locations/mission"
@@ -14730,7 +14730,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -14774,7 +14774,7 @@
     "address": "690 5th Street",
     "lat": 37.7753223,
     "lon": -122.3976597,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.usertesting.com/"
@@ -14786,7 +14786,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -14888,7 +14888,7 @@
     "address": "1201 Howard Street, San Francisco",
     "lat": 37.775948,
     "lon": -122.4115905,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://joeskwikmart.com/"
@@ -14902,7 +14902,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -15112,7 +15112,7 @@
     "address": "2193 Mission Street",
     "lat": 37.7621083,
     "lon": -122.4191384,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://weirdfishsf.com/"
@@ -15124,7 +15124,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -15222,7 +15222,7 @@
     "address": "1700 Fillmore Street, San Francisco, CA",
     "lat": 37.7853615,
     "lon": -122.4328467,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://coprarestaurant.com"
@@ -15236,7 +15236,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -15307,7 +15307,7 @@
     "address": "",
     "lat": 37.7850506,
     "lon": -122.4312607,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://tokaidoarts.com/"
@@ -15324,7 +15324,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -15478,7 +15478,7 @@
     "address": "",
     "lat": 37.7954633,
     "lon": -122.3933816,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://dailydriver.com"
@@ -15490,7 +15490,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -15660,7 +15660,7 @@
     "address": "1355 East Olive Way, Seattle",
     "lat": 47.6166381,
     "lon": -122.3275746,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.donnasseattle.com/"
@@ -15674,7 +15674,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -15834,7 +15834,7 @@
     "address": "94 Columbia Street, Seattle, WA",
     "lat": 47.6032314,
     "lon": -122.3353113,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.maephim.com/"
@@ -15848,7 +15848,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16033,7 +16033,7 @@
     "address": "2223 Queen Anne Avenue North, Seattle",
     "lat": 47.6391501,
     "lon": -122.357123,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.littlemountainmontessori.com"
@@ -16045,7 +16045,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16116,7 +16116,7 @@
     "address": "1205 East Pike Street, Seattle",
     "lat": 47.6139715,
     "lon": -122.3164323,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://bluebirdicecream.com/"
@@ -16128,7 +16128,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16145,7 +16145,7 @@
     "address": "1318 East Pike Street, Seattle, WA",
     "lat": 47.6142438,
     "lon": -122.3145747,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://agoodcultleader.com/"
@@ -16157,7 +16157,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16228,7 +16228,7 @@
     "address": "805 East Pine Street, Seattle",
     "lat": 47.6150914,
     "lon": -122.3217325,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.siff.net/year-round-cinema/cinema-venues/siff-cinema-egyptian"
@@ -16240,7 +16240,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16369,7 +16369,7 @@
     "address": "112 Westlake Avenue North, Seattle, WA",
     "lat": 47.6186876,
     "lon": -122.3382439,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.barrysbootcamp.com/studio/seattle/"
@@ -16385,7 +16385,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16458,7 +16458,7 @@
     "address": "2827 2nd Avenue, Seattle, WA",
     "lat": 47.6173256,
     "lon": -122.3516132,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://computercare.net/"
@@ -16470,7 +16470,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16514,7 +16514,7 @@
     "address": "2201 1st Avenue, Seattle, WA",
     "lat": 47.6125785,
     "lon": -122.3454935,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.bocarestobar.com/seattle-restaurant-boca-queen-city/"
@@ -16526,7 +16526,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16543,7 +16543,7 @@
     "address": "2201 Westlake Avenue, Seattle, WA",
     "lat": 47.6180469,
     "lon": -122.338829,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.firsttechfed.com/experience-centers/washington/south-lake-union-experience-center"
@@ -16559,7 +16559,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16657,7 +16657,7 @@
     "address": "2106 3rd Avenue, Seattle, WA",
     "lat": 47.6135119,
     "lon": -122.3424121,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.watsonsecurity.com/"
@@ -16671,7 +16671,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16744,7 +16744,7 @@
     "address": "1900 3rd Avenue, Seattle, WA",
     "lat": 47.6119123,
     "lon": -122.339715,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://mattressfirm.com/"
@@ -16760,7 +16760,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16804,7 +16804,7 @@
     "address": "1932 9th Avenue, Seattle, WA",
     "lat": 47.6163532,
     "lon": -122.3354297,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.printtime.com/"
@@ -16816,7 +16816,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -16833,7 +16833,7 @@
     "address": "624 Olive Way, Seattle, WA",
     "lat": 47.6136139,
     "lon": -122.3354441,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.facebook.com/zanewylies/"
@@ -16847,7 +16847,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -17109,7 +17109,7 @@
     "address": "2332 East Madison Street, Seattle, WA",
     "lat": 47.6200605,
     "lon": -122.301488,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.yeobosea.com"
@@ -17123,7 +17123,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -17140,7 +17140,7 @@
     "address": "1921 2nd Avenue, Seattle, WA",
     "lat": 47.6113234,
     "lon": -122.3413814,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://thefinerie.com/"
@@ -17152,7 +17152,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -17391,7 +17391,7 @@
     "address": "114 Westlake Avenue North, Seattle, WA",
     "lat": 47.6188785,
     "lon": -122.338249,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.becu.org/locations/south-lake-union"
@@ -17407,7 +17407,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -17424,7 +17424,7 @@
     "address": "116 Westlake Avenue North, Seattle, WA",
     "lat": 47.6189497,
     "lon": -122.338252,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.zoomcare.com/clinic/zoomcare-south-lake-union"
@@ -17436,7 +17436,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -17453,7 +17453,7 @@
     "address": "508 Denny Way, Seattle, WA",
     "lat": 47.6187285,
     "lon": -122.3471324,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://fatcity.net"
@@ -17465,7 +17465,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -18363,7 +18363,7 @@
     "address": "1101 East Union Street, Seattle",
     "lat": 47.6127784,
     "lon": -122.3179448,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://likelihood.us/"
@@ -18377,7 +18377,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -18479,7 +18479,7 @@
     "address": "102 1st Avenue South, Seattle, WA",
     "lat": 47.601475,
     "lon": -122.3339625,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://cowchipcookies.com/"
@@ -18491,7 +18491,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -18894,7 +18894,7 @@
     "address": "2020 6th Avenue, Seattle, WA",
     "lat": 47.6147849,
     "lon": -122.3386104,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://mamnoonstreet.com/"
@@ -18908,7 +18908,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -19033,7 +19033,7 @@
     "address": "2229 5th Avenue, WA",
     "lat": 47.6157487,
     "lon": -122.342911,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://eggs-and-plants.square.site/"
@@ -19045,7 +19045,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -19062,7 +19062,7 @@
     "address": "1305 1st Avenue, Seattle, WA",
     "lat": 47.6068659,
     "lon": -122.338517,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.starbucks.com/store-locator/store/1030943/pickup-1st-u-heritage-ma-1305-1st-ave-seattle-wa-981012002-us"
@@ -19080,7 +19080,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -19097,7 +19097,7 @@
     "address": "400 Fairview Avenue North, Seattle, WA",
     "lat": 47.6228318,
     "lon": -122.3338428,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://nadimama.com/mbar"
@@ -19113,7 +19113,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -19541,7 +19541,7 @@
     "address": "1816 East Yesler Way, Seattle, WA",
     "lat": 47.6018596,
     "lon": -122.308236,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://thebarbequepit.wixsite.com/seattle"
@@ -19555,7 +19555,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -19572,7 +19572,7 @@
     "address": "2407 East Union Street",
     "lat": 47.6127893,
     "lon": -122.3008743,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.thecuraco.com/"
@@ -19584,7 +19584,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -20016,7 +20016,7 @@
     "address": "1 East Flagler Street, Miami, FL",
     "lat": 25.7743003,
     "lon": -80.1934807,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.walgreens.com/locator/walgreens-1+e+flagler+st-miami-fl-33131/id=5251"
@@ -20034,7 +20034,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -20489,7 +20489,7 @@
     "address": "500 16th Street, Denver, CO",
     "lat": 39.7439721,
     "lon": -104.9912739,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.motomaki.com/"
@@ -20503,7 +20503,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -20520,7 +20520,7 @@
     "address": "850 South Monaco Street Parkway, Denver, CO",
     "lat": 39.7016751,
     "lon": -104.9117168,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.silverminesubs.com/"
@@ -20532,7 +20532,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -20829,7 +20829,7 @@
     "address": "100 Peachtree Street Northwest, Atlanta, GA",
     "lat": 33.7566098,
     "lon": -84.3886713,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.starbucks.com/store-locator/store/15319/equitable-100-peachtree-st-nw-atlanta-ga-303031906-us"
@@ -20847,7 +20847,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21040,7 +21040,7 @@
     "address": "224 Ponce de Leon Avenue Northeast",
     "lat": 33.7728357,
     "lon": -84.3799419,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://marymacs.com/"
@@ -21054,7 +21054,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21210,7 +21210,7 @@
     "address": "",
     "lat": 33.7927704,
     "lon": -84.3862359,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "http://www.vespuccispizza.com/atlanta/"
@@ -21222,7 +21222,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21299,7 +21299,7 @@
     "address": "1000 Marietta Street, Atlanta, GA",
     "lat": 33.7790822,
     "lon": -84.4108056,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.earlsbike.shop/"
@@ -21313,7 +21313,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21357,7 +21357,7 @@
     "address": "",
     "lat": 33.7589424,
     "lon": -84.3877625,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.r3atlanta.com/"
@@ -21369,7 +21369,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21440,7 +21440,7 @@
     "address": "200 Peachtree Street Northeast",
     "lat": 33.7590764,
     "lon": -84.3877591,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.viewsbar.com/"
@@ -21454,7 +21454,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21471,7 +21471,7 @@
     "address": "529 Peachtree Street Northeast, Atlanta",
     "lat": 33.7689561,
     "lon": -84.3850811,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.retrogrillatlanta.com/"
@@ -21483,7 +21483,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21500,7 +21500,7 @@
     "address": "",
     "lat": 33.7845221,
     "lon": -84.3832639,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.doscaminos.com/"
@@ -21512,7 +21512,7 @@
       },
       "brand": null,
       "confidence": 0.5,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21529,7 +21529,7 @@
     "address": "1020 Spring Street Northwest, Atlanta, GA",
     "lat": 33.7816665,
     "lon": -84.3895392,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.habanerosrestaurants.co/atlanta"
@@ -21541,7 +21541,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21614,7 +21614,7 @@
     "address": "1382 Peachtree Street Northeast",
     "lat": 33.7922127,
     "lon": -84.3864741,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.tafferstavern.com/locations/midtownatlanta/"
@@ -21626,7 +21626,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21672,7 +21672,7 @@
     "address": "1;ONE Margaret Mitchell Square, Atlanta, GA",
     "lat": 33.7577459,
     "lon": -84.388453,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.fulcolibrary.org/central-library/"
@@ -21686,7 +21686,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21703,7 +21703,7 @@
     "address": "30 North Avenue Northeast, Atlanta, GA",
     "lat": 33.7716053,
     "lon": -84.3864352,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://negrilatl.com/"
@@ -21715,7 +21715,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21732,7 +21732,7 @@
     "address": "209 Peachtree Street Northeast, Atlanta, GA",
     "lat": 33.7595197,
     "lon": -84.3872511,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.hooters.com/locations/1109-atlanta-downtown"
@@ -21750,7 +21750,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21767,7 +21767,7 @@
     "address": "21 14th Street Northeast, Atlanta, GA",
     "lat": 33.7863083,
     "lon": -84.3871645,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.starbucks.com/store-locator/store/12322/21-14th-street-21-14th-street-ne-atlanta-ga-303093645-us"
@@ -21785,7 +21785,7 @@
         }
       },
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",
@@ -21829,7 +21829,7 @@
     "address": "1315 Peachtree Street Northeast, Atlanta, GA",
     "lat": 33.7906294,
     "lon": -84.3847708,
-    "open": 0,
+    "open": 1,
     "metadata": {
       "websites": [
         "https://www.fulcolibrary.org/locations/PTREE/"
@@ -21843,7 +21843,7 @@
       },
       "brand": null,
       "confidence": 0.7,
-      "open": 0,
+      "open": 1,
       "sources": [
         {
           "dataset": "osm",

@@ -156,16 +156,18 @@ def normalize_url(raw: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 UPSERT_SQL = """
-INSERT INTO places (place_id, name, category, source, geom, metadata_json)
-VALUES (%(place_id)s, %(name)s, %(category)s, %(source)s,
+INSERT INTO places (place_id, name, category, address, source, geom, metadata_json)
+VALUES (%(place_id)s, %(name)s, %(category)s, %(address)s, %(source)s,
         ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)::geography,
         %(metadata_json)s::jsonb)
 ON CONFLICT (place_id) DO UPDATE SET
     name          = COALESCE(EXCLUDED.name, places.name),
     category      = COALESCE(EXCLUDED.category, places.category),
+    address       = COALESCE(EXCLUDED.address, places.address),
     metadata_json = places.metadata_json || EXCLUDED.metadata_json,
     last_updated  = now()
 WHERE places.place_id = EXCLUDED.place_id;
+
 """
 
 

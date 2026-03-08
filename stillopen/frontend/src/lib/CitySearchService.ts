@@ -43,7 +43,24 @@ function resolveAlias(cityName: string): string {
 export async function geocodeCity(cityName: string): Promise<{ bbox: BoundingBox; displayName: string; boundary: object | null } | null> {
     try {
         const resolvedName = resolveAlias(cityName);
-        // polygon_geojson=1 requests the city boundary polygon as GeoJSON
+
+        // 1. Try our backend cache first (avoids OSM rate limits)
+        try {
+            const backendUrl = `${API_BASE}/geocode/city?city=${encodeURIComponent(resolvedName)}`;
+            const backendRes = await fetch(backendUrl);
+            if (backendRes.status === 429) {
+                throw new Error("THROTTLED");
+            }
+            if (backendRes.ok) {
+                const cached = await backendRes.json();
+                if (cached) return cached;
+            }
+        } catch (err: any) {
+            if (err.message === "THROTTLED") throw err;
+            console.warn("Backend geocode error, skipping cache:", err);
+        }
+
+        // 2. Fallback to direct Nominatim search
         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(resolvedName)}&format=json&limit=5&polygon_geojson=1&countrycodes=us`;
         const res = await fetch(url, { headers: { 'User-Agent': 'StillOpenCitiesMode/1.0' } });
         if (!res.ok) return null;

@@ -4,11 +4,15 @@ export async function searchPlaces(
     query: string,
     limit: number = 20,
     bbox?: { min_lat: number; max_lat: number; min_lon: number; max_lon: number },
-    offset: number = 0
+    offset: number = 0,
+    city?: string
 ) {
     let url = `${API_BASE}/search?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
     if (bbox) {
         url += `&min_lat=${bbox.min_lat}&max_lat=${bbox.max_lat}&min_lon=${bbox.min_lon}&max_lon=${bbox.max_lon}`;
+    }
+    if (city) {
+        url += `&city=${encodeURIComponent(city)}`;
     }
     const res = await fetch(url);
     if (!res.ok) throw new Error("Failed to search places");

@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS places (
     place_id TEXT UNIQUE,
     name TEXT,
     category TEXT,
+    address TEXT,
     geom GEOGRAPHY(Point, 4326),
     source TEXT,
     metadata_json JSONB,

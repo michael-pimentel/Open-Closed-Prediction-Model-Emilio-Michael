@@ -106,7 +106,18 @@ SET metadata_json = (
     WHERE v::text NOT IN ('null', '""', '')
 )
 WHERE metadata_json::text LIKE '%null%'
-   OR metadata_json::text LIKE '%"""%';
+   OR metadata_json::text LIKE '%""%';
+"""
+
+
+# 6. Sync address from metadata_json to the top-level address column
+SQL_SYNC_ADDRESS_TO_COLUMN = """
+UPDATE places
+SET address = metadata_json->>'address'
+WHERE
+    (address IS NULL OR address = '')
+    AND metadata_json->>'address' IS NOT NULL
+    AND metadata_json->>'address' != '';
 """
 
 
@@ -132,6 +143,7 @@ def main():
     run_pass(conn, "Fix website URLs",         SQL_FIX_WEBSITE)
     run_pass(conn, "Backfill category column", SQL_BACKFILL_CATEGORY)
     run_pass(conn, "Sync category → metadata", SQL_SYNC_CATEGORY_TO_META)
+    run_pass(conn, "Sync address → column",   SQL_SYNC_ADDRESS_TO_COLUMN)
 
     if not args.skip_nulls:
         run_pass(conn, "Strip null metadata values", SQL_STRIP_NULLS)

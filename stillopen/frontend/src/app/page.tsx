@@ -54,37 +54,7 @@ interface WorldData {
     borderArcs: [number, number][][];
 }
 
-// ── Existing topojson arc decoder — kept as-is per instructions ────────────────
-// (returns SVG path string; kept for reference — globe uses fetchWorldData below)
-async function fetchWorldMapPath(): Promise<string> {
-    try {
-        const res = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
-        if (!res.ok) return "";
-        const topo = await res.json();
-        const { scale, translate } = topo.transform as {
-            scale: [number, number]; translate: [number, number];
-        };
-        const segments: string[] = [];
-        for (const arc of topo.arcs as number[][][]) {
-            let qx = 0, qy = 0;
-            const pts: string[] = [];
-            for (const [dx, dy] of arc) {
-                qx += dx; qy += dy;
-                const lng = qx * scale[0] + translate[0];
-                const lat = qy * scale[1] + translate[1];
-                const x = ((lng + 180) / 360) * 960;
-                const y = ((90 - lat) / 180) * 500;
-                pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
-            }
-            if (pts.length >= 2)
-                segments.push(`M${pts[0]}` + pts.slice(1).map(p => `L${p}`).join(""));
-        }
-        return segments.join(" ");
-    } catch { return ""; }
-}
-
 // ── New: decode topojson to lng/lat arrays for 3-D globe rendering ─────────────
-// Uses the same delta-decode logic as fetchWorldMapPath, different output format.
 async function fetchWorldData(): Promise<WorldData> {
     try {
         const res = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
@@ -94,7 +64,6 @@ async function fetchWorldData(): Promise<WorldData> {
             scale: [number, number]; translate: [number, number];
         };
 
-        // Delta-decode one arc to [lng, lat] pairs (same logic as fetchWorldMapPath)
         function decodeArc(idx: number): [number, number][] {
             const rev = idx < 0;
             const arc = topo.arcs[rev ? ~idx : idx] as number[][];
@@ -106,7 +75,6 @@ async function fetchWorldData(): Promise<WorldData> {
             return rev ? pts.reverse() : pts;
         }
 
-        // Merge arc list into a single continuous ring (skip duplicate shared endpoints)
         function decodeRing(indices: number[]): [number, number][] {
             const pts: [number, number][] = [];
             for (const idx of indices) {
@@ -116,7 +84,6 @@ async function fetchWorldData(): Promise<WorldData> {
             return pts;
         }
 
-        // Recursively extract polygon rings from any geometry type
         function extractRings(geom: any): [number, number][][] {
             const rings: [number, number][][] = [];
             if (geom.type === "Polygon") {
@@ -131,8 +98,6 @@ async function fetchWorldData(): Promise<WorldData> {
         }
 
         const landRings = extractRings(topo.objects.land);
-
-        // All raw arcs as border polylines
         const borderArcs: [number, number][][] = (topo.arcs as number[][][]).map(arc => {
             let qx = 0, qy = 0;
             return arc.map(([dx, dy]) => {
@@ -160,11 +125,14 @@ export default function Home() {
     const worldDataRef = useRef<WorldData>({ landRings: [], borderArcs: [] });
     const rotRef = useRef(0);           // radians, longitude rotation
     const tiltRef = useRef(22 * (Math.PI / 180)); // radians, camera latitude tilt
+    const zoomRef = useRef(0);           // 0 = zoomed in (horizon), 1 = zoomed out (full)
     const velocityRef = useRef({ x: 0, y: 0 });
     const isDraggingRef = useRef(false);
     const lastMouseRef = useRef({ x: 0, y: 0 });
     const lastTimeRef = useRef(0);
     const animFrameRef = useRef(0);
+
+    const [scrollProgress, setScrollProgress] = useState(0);
 
     // Mutable mirrors of React state (read inside rAF without stale closures)
     const dotColorsRef = useRef<string[]>(dotColors);
@@ -214,6 +182,20 @@ export default function Home() {
         return () => clearInterval(timer);
     }, []);
 
+    // ── Interaction Handlers ────────────────────────────────────────────────
+    const handleScroll = () => {
+        const scroll = window.scrollY;
+        const viewport = window.innerHeight;
+        const progress = Math.min(Math.max(scroll / (viewport * 1.5), 0), 1);
+        setScrollProgress(progress);
+        zoomRef.current = progress;
+    };
+
+    useEffect(() => {
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
     // ── Fetch world data once ────────────────────────────────────────────────
     useEffect(() => {
         fetchWorldData().then(data => { worldDataRef.current = data; });
@@ -227,8 +209,8 @@ export default function Home() {
         const prefersReducedMotion =
             window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-        // Size canvas to physical pixels
         function resize() {
+            if (!canvas) return;
             const w = canvas.offsetWidth || window.innerWidth;
             const h = canvas.offsetHeight || window.innerHeight;
             canvas.width = w;
@@ -238,73 +220,77 @@ export default function Home() {
         const ro = new ResizeObserver(resize);
         ro.observe(canvas);
 
-        // ── Main draw function ──────────────────────────────────────────────
         function draw(time: number) {
             if (!canvas) return;
             const ctx = canvas.getContext("2d");
             if (!ctx) return;
 
-            // Advance rotation with ease-out momentum
             const dt = lastTimeRef.current === 0 ? 0 : time - lastTimeRef.current;
             lastTimeRef.current = time;
 
             if (!isDraggingRef.current) {
-                // Natural rotation + friction for momentum
                 if (!prefersReducedMotion) {
-                    rotRef.current += (dt / 1000) * ((2 * Math.PI) / 120); // slow baseline
+                    rotRef.current += (dt / 1000) * ((2 * Math.PI) / 120);
                 }
                 rotRef.current += velocityRef.current.x;
                 tiltRef.current += velocityRef.current.y;
-
-                // Friction
                 velocityRef.current.x *= 0.95;
                 velocityRef.current.y *= 0.95;
             }
 
-            const W = canvas.width;
-            const H = canvas.height;
-            const rot = rotRef.current;
-
-            // Constrain tilt to avoid gimbal lock or extreme inversion
             const minTilt = -10 * (Math.PI / 180);
             const maxTilt = 60 * (Math.PI / 180);
             if (tiltRef.current < minTilt) tiltRef.current = minTilt;
             if (tiltRef.current > maxTilt) tiltRef.current = maxTilt;
 
+            const W = canvas.width;
+            const H = canvas.height;
+            const rot = rotRef.current;
+            const z = zoomRef.current;
+
+            const R_start = Math.max(W * 0.60, H * 0.72);
+            const cy_start = R_start + H * 0.28;
+            const R_end = Math.min(W, H) * 0.38;
+            const cy_end = H * 0.52;
+
+            const R = R_start * (1 - z) + R_end * z;
+            const cx = W / 2;
+            const cy = cy_start * (1 - z) + cy_end * z;
+
             const TILT = tiltRef.current;
             const cosT = Math.cos(TILT);
             const sinT = Math.sin(TILT);
 
-            // Globe geometry:
-            // – R large enough to fill viewport width and overflow the bottom
-            // – Centre well below viewport so only the top arc (horizon) peeks in
-            const R = Math.max(W * 0.60, H * 0.72);
-            const cx = W / 2;
-            const cy = R + H * 0.28; // horizon sits ~28 % from top
-
-            // ── Orthographic projection ─────────────────────────────────────
-            // Returns canvas {x, y} and whether the point faces the camera (vis).
-            // Visible hemisphere: z-component after tilt > 0.
             function project(lng: number, lat: number) {
                 const phi = lat * (Math.PI / 180);
                 const lam = lng * (Math.PI / 180) + rot;
-                // Unit-sphere point
                 const px = Math.cos(phi) * Math.cos(lam);
                 const py = Math.sin(phi);
                 const pz = Math.cos(phi) * Math.sin(lam);
-                // Apply X-axis tilt
                 const py2 = py * cosT - pz * sinT;
                 const pz2 = py * sinT + pz * cosT;
                 return { x: cx + R * px, y: cy - R * py2, vis: pz2 > 0 };
             }
 
-            const dark = isDarkRef.current;
+            function isMidpointVisible(lng1: number, lat1: number, lng2: number, lat2: number) {
+                let midLng = (lng1 + lng2) / 2;
+                // Handle antimeridian wrap (-180 to 180)
+                if (Math.abs(lng1 - lng2) > 180) {
+                    midLng = midLng > 0 ? midLng - 180 : midLng + 180;
+                }
+                const midLat = (lat1 + lat2) / 2;
+                const phi = midLat * (Math.PI / 180);
+                const lam = midLng * (Math.PI / 180) + rot;
+                const py = Math.sin(phi);
+                const pz = Math.cos(phi) * Math.sin(lam);
+                const pz2 = py * sinT + pz * cosT;
+                return pz2 > 0;
+            }
 
-            // ── 1. Space background above the horizon ───────────────────────
+            const dark = isDarkRef.current;
             ctx.fillStyle = dark ? "#000000" : "#0a0f1e";
             ctx.fillRect(0, 0, W, H);
 
-            // ── 2. Globe disc: clip → ocean fill ────────────────────────────
             ctx.save();
             ctx.beginPath();
             ctx.arc(cx, cy, R, 0, Math.PI * 2);
@@ -313,18 +299,23 @@ export default function Home() {
             ctx.fillStyle = dark ? "#050f0a" : "#0f2318";
             ctx.fillRect(0, 0, W, H);
 
-            // ── 3. Land fill (batched into one path for performance) ─────────
-            // Only draw consecutive visible vertices; break path on invisible ones
-            // to prevent back-face geometry bleeding into the front hemisphere.
             ctx.beginPath();
             const { landRings, borderArcs } = worldDataRef.current;
             for (const ring of landRings) {
                 let drawing = false;
+                let lx = 0, ly = 0, lLng = 0, lLat = 0;
                 for (const [lng, lat] of ring) {
                     const { x, y, vis } = project(lng, lat);
                     if (vis) {
-                        if (!drawing) { ctx.moveTo(x, y); drawing = true; }
-                        else { ctx.lineTo(x, y); }
+                        const longSeg = drawing && Math.hypot(x - lx, y - ly) > R * 0.15;
+                        const midVis = !longSeg || isMidpointVisible(lLng, lLat, lng, lat);
+                        if (!drawing || !midVis) {
+                            ctx.moveTo(x, y);
+                            drawing = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                        lx = x; ly = y; lLng = lng; lLat = lat;
                     } else {
                         drawing = false;
                     }
@@ -333,15 +324,22 @@ export default function Home() {
             ctx.fillStyle = dark ? "#0d2b1e" : "#1a3a2a";
             ctx.fill();
 
-            // ── 4. Country borders (batched single stroke) ───────────────────
             ctx.beginPath();
             for (const arc of borderArcs) {
                 let started = false;
+                let lx = 0, ly = 0, lLng = 0, lLat = 0;
                 for (const [lng, lat] of arc) {
                     const { x, y, vis } = project(lng, lat);
                     if (vis) {
-                        if (!started) { ctx.moveTo(x, y); started = true; }
-                        else { ctx.lineTo(x, y); }
+                        const longSeg = started && Math.hypot(x - lx, y - ly) > R * 0.15;
+                        const midVis = !longSeg || isMidpointVisible(lLng, lLat, lng, lat);
+                        if (!started || !midVis) {
+                            ctx.moveTo(x, y);
+                            started = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                        lx = x; ly = y; lLng = lng; lLat = lat;
                     } else {
                         started = false;
                     }
@@ -350,9 +348,9 @@ export default function Home() {
             ctx.strokeStyle = "rgba(16,185,129,0.3)";
             ctx.lineWidth = 0.6;
             ctx.lineJoin = "round";
+            ctx.lineCap = "round";
             ctx.stroke();
 
-            // ── 5. Limb darkening — planet edges feel rounded ────────────────
             const limb = ctx.createRadialGradient(cx, cy, R * 0.55, cx, cy, R);
             limb.addColorStop(0, "rgba(0,0,0,0)");
             limb.addColorStop(0.7, "rgba(0,0,0,0)");
@@ -362,11 +360,8 @@ export default function Home() {
             ctx.fillStyle = limb;
             ctx.fill();
 
-            ctx.restore(); // ── end globe clip ──────────────────────────────
+            ctx.restore();
 
-            // ── 6. Atmosphere glow — emerald/teal halo hugging the horizon ──
-            // createRadialGradient(inner circle … outer circle): opacity peaks at
-            // the disc edge (R * 0.97) and fades to zero just outside (R * 1.12).
             const atm = ctx.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.12);
             atm.addColorStop(0, "rgba(16,185,129,0.55)");
             atm.addColorStop(0.35, "rgba(16,185,129,0.20)");
@@ -377,10 +372,7 @@ export default function Home() {
             ctx.fillStyle = atm;
             ctx.fill();
 
-            // ── 7. City-light dots — emerald (open) / rose (closed) ─────────
             const colors = dotColorsRef.current;
-
-            // Emerald pass
             ctx.shadowBlur = 9;
             ctx.shadowColor = "#10b981";
             ctx.fillStyle = "#10b981";
@@ -394,7 +386,6 @@ export default function Home() {
             }
             ctx.fill();
 
-            // Rose pass
             ctx.shadowColor = "#f43f5e";
             ctx.fillStyle = "#f43f5e";
             ctx.beginPath();
@@ -406,11 +397,9 @@ export default function Home() {
                 ctx.arc(x, y, 2.5, 0, Math.PI * 2);
             }
             ctx.fill();
-
             ctx.shadowBlur = 0;
         }
 
-        // rAF loop
         function tick(time: number) {
             draw(time);
             animFrameRef.current = requestAnimationFrame(tick);
@@ -421,9 +410,8 @@ export default function Home() {
             cancelAnimationFrame(animFrameRef.current);
             ro.disconnect();
         };
-    }, []); // intentionally empty — all live state accessed via refs
+    }, []);
 
-    // ── Interaction Handlers ────────────────────────────────────────────────
     const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
         isDraggingRef.current = true;
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
@@ -436,13 +424,10 @@ export default function Home() {
         if (!isDraggingRef.current) return;
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
         const dx = (clientX - lastMouseRef.current.x) * 0.005;
         const dy = (clientY - lastMouseRef.current.y) * 0.005;
-
         rotRef.current += dx;
         tiltRef.current -= dy;
-
         velocityRef.current = { x: dx, y: -dy };
         lastMouseRef.current = { x: clientX, y: clientY };
     };
@@ -460,7 +445,6 @@ export default function Home() {
         };
     }, []);
 
-    // ── Render ───────────────────────────────────────────────────────────────
     const [pageBg, setPageBg] = useState(isDark ? "#000000" : "#f9fafb");
     useEffect(() => {
         setPageBg(isDark ? "#000000" : "#f9fafb");
@@ -470,58 +454,118 @@ export default function Home() {
         textShadow: "0 0 18px rgba(16,185,129,0.4), 0 2px 6px rgba(0,0,0,0.5)",
     };
 
+    const z = scrollProgress;
+
     return (
-        <div
-            ref={containerRef}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onTouchStart={handleMouseDown}
-            onTouchMove={handleMouseMove}
-            className="w-full flex-1 flex flex-col items-center justify-center relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
-            style={{ backgroundColor: isDark ? "#000000" : "#0a0f1e" }}
-        >
-            {/* Globe canvas — fills the container absolutely */}
-            <canvas
-                ref={canvasRef}
-                className="absolute inset-0 w-full h-full"
-                aria-hidden="true"
-            />
-
-            {/* Bottom gradient: page background bleeds up ~45 % so the search
-                bar sits on a clean, readable surface rather than raw globe */}
+        <div className="w-full bg-[#0a0f1e] dark:bg-[#000000] min-h-[300vh] relative">
             <div
-                className="absolute inset-0 pointer-events-none z-[1]"
-                style={{
-                    background: [
-                        `linear-gradient(to top, ${pageBg} 0%, ${pageBg} 18%, transparent 52%)`,
-                    ].join(", "),
-                }}
-            />
-
-            {/* Foreground UI */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                className="w-full flex flex-col items-center space-y-16 z-10 max-w-7xl mx-auto pointer-events-none px-6"
+                ref={containerRef}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onTouchStart={handleMouseDown}
+                onTouchMove={handleMouseMove}
+                className="sticky top-0 w-full h-screen flex flex-col items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing select-none"
+                style={{ backgroundColor: isDark ? "#000000" : "#0a0f1e" }}
             >
-                <div className="text-center space-y-6 pointer-events-auto">
-                    <h1
-                        className="text-6xl sm:text-7xl font-black tracking-tighter text-white"
-                        style={headingShadow}
-                    >
-                        Still<span className="text-emerald-400">Open</span>
-                    </h1>
-                    <p className="text-xl sm:text-2xl text-gray-300 font-light max-w-xl mx-auto leading-relaxed">
-                        Open or Closed prediction model powered by{" "}
-                        <span className="font-semibold text-gray-100">open source data!</span>
-                    </p>
-                </div>
+                <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 w-full h-full"
+                    aria-hidden="true"
+                />
 
-                <div className="w-full flex justify-center pointer-events-auto">
-                    <SearchBar />
-                </div>
-            </motion.div>
+                <div
+                    className="absolute inset-0 pointer-events-none z-[1]"
+                    style={{
+                        opacity: 1 - z * 0.5,
+                        background: [
+                            `linear-gradient(to top, ${pageBg} 0%, transparent 40%)`,
+                        ].join(", "),
+                    }}
+                />
+
+                <motion.div
+                    style={{
+                        opacity: Math.max(0, 1 - z * 2.5),
+                        y: z * -100,
+                        pointerEvents: z > 0.4 ? "none" : "auto"
+                    }}
+                    className="w-full flex flex-col items-center space-y-16 z-10 max-w-7xl mx-auto pointer-events-none px-6"
+                >
+                    <div className="text-center space-y-6 pointer-events-auto">
+                        <h1
+                            className="text-6xl sm:text-7xl font-black tracking-tighter text-white"
+                            style={headingShadow}
+                        >
+                            Still<span className="text-emerald-400">Open</span>
+                        </h1>
+                        <p className="text-xl sm:text-2xl text-gray-300 font-light max-w-xl mx-auto leading-relaxed">
+                            Open or Closed prediction model powered by{" "}
+                            <span className="font-semibold text-gray-100">open source data!</span>
+                        </p>
+                    </div>
+
+                    <div className="w-full flex justify-center pointer-events-auto">
+                        <SearchBar />
+                    </div>
+                </motion.div>
+
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 - z * 5 }}
+                    className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-gray-400 z-10"
+                >
+                    <span className="text-[10px] uppercase font-bold tracking-[0.2em]">Scroll to Explore</span>
+                    <div className="w-px h-12 bg-gradient-to-b from-emerald-500 to-transparent" />
+                </motion.div>
+            </div>
+
+            <div className="relative z-20 w-full flex flex-col items-center">
+                <div className="h-[100vh]" />
+                <section className="w-full max-w-7xl mx-auto px-6 py-32 grid grid-cols-1 md:grid-cols-2 gap-24 items-center">
+                    <div className="space-y-8">
+                        <h2 className="text-4xl md:text-5xl font-black text-white leading-tight">
+                            A Global Perspective on <br />
+                            <span className="text-emerald-400">Real-Time Data</span>
+                        </h2>
+                        <p className="text-gray-400 text-lg leading-relaxed">
+                            Our model processes millions of signals from open-source repositories,
+                            Overture Maps components, and community data points to predict
+                            the operational status of businesses worldwide.
+                        </p>
+                        <div className="grid grid-cols-2 gap-8">
+                            <div>
+                                <div className="text-3xl font-black text-emerald-400">240M+</div>
+                                <div className="text-xs uppercase tracking-tighter text-gray-500 font-bold">Places Monitored</div>
+                            </div>
+                            <div>
+                                <div className="text-3xl font-black text-emerald-400">92%</div>
+                                <div className="text-xs uppercase tracking-tighter text-gray-500 font-bold">Model Accuracy</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+                        <div className="space-y-6">
+                            <div className="h-2 w-24 bg-emerald-500 rounded-full" />
+                            <h3 className="text-xl font-bold text-white">Advanced Signal Analysis</h3>
+                            <p className="text-sm text-gray-400 leading-relaxed">
+                                We analyze historical patterns, social markers, and direct telemetry
+                                to determine if a place is open, even when official sources are
+                                silent or outdated.
+                            </p>
+                            <div className="space-y-3 pt-4">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="flex items-center gap-4 bg-white/5 p-4 rounded-xl">
+                                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold">{i}</div>
+                                        <div className="h-2 flex-1 bg-white/10 rounded-full overflow-hidden">
+                                            <motion.div initial={{ width: 0 }} whileInView={{ width: '70%' }} className="h-full bg-emerald-500/40" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </div>
     );
 }

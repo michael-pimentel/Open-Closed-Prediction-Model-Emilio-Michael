@@ -32,112 +32,167 @@ class ModelService:
             print(f"Model not found at {MODEL_PATH}! Predictions will be mocks.")
             self.model = None
 
-    def predict(self, place_data: dict):
-        status = "unknown"
-        confidence = 0.0
-        features_dict = {}
-
-        # If ground-truth open label is stored in metadata, use it directly.
-        # This handles OSM/seeded records where we know the actual status.
-        explicit_open = place_data.get('open')
-        if explicit_open is not None:
-            try:
-                explicit_open = int(explicit_open)
-                if explicit_open == 0:
-                    return {
-                        "status": "closed",
-                        "confidence": 0.90,
-                        "explanation": [
-                            "Data source indicates this place is permanently closed.",
-                        ],
-                    }
-            except (ValueError, TypeError):
-                pass
-
-        try:
-            # Compute features using the updated feature pipeline
-            features_dict = compute_features(place_data, self.artifacts)
-            
-            if not self.model:
-                status = "open"
-                confidence = 0.82
-            else:
-                # Get feature column order from the model artifacts
-                feature_cols = self.artifacts.get('feature_names', 
-                               self.artifacts.get('features', []))
-                
-                df_input = pd.DataFrame([features_dict])
-                
-                if feature_cols:
-                    for c in feature_cols:
-                        if c not in df_input.columns:
-                            df_input[c] = 0
-                    df_input = df_input[feature_cols]
-
-                # Get probability prediction
-                if hasattr(self.model, "predict_proba"):
-                    proba = self.model.predict_proba(df_input)[0]
-                    open_prob = float(proba[1])
-                    
-                    if open_prob >= self.threshold:
-                        status = "open"
-                        confidence = open_prob
-                    else:
-                        status = "closed"
-                        confidence = 1.0 - open_prob
-                else:
-                    prediction_cls = self.model.predict(df_input)[0]
-                    status = "open" if prediction_cls == 1 else "closed"
-                    confidence = 0.5
-        except Exception as e:
-            print(f"Prediction error: {e}")
-            status = "open"
-            confidence = 0.5
-
-        # Generate explanation signals
+    def _build_explanation(self, status: str, features_dict: dict) -> list:
         explanation = []
         if status == "open":
             explanation.append("Model predicts this place is likely still in business.")
         else:
             explanation.append("Model predicts this place may be permanently closed.")
-            
         if features_dict.get('has_website'):
             explanation.append("Website is active.")
         else:
             explanation.append("No website detected.")
-            
         if features_dict.get('has_social'):
             explanation.append("Social media presence detected.")
-            
         if features_dict.get('has_phone'):
             explanation.append("Phone number on file.")
-            
         if features_dict.get('num_sources', 0) > 2:
             explanation.append(f"Confirmed by {features_dict['num_sources']} data sources.")
         elif features_dict.get('num_sources', 0) == 1:
             explanation.append("Only 1 data source available.")
-            
         if features_dict.get('days_since_last_update', 999) < 90:
             explanation.append("Recent data updates found.")
         elif features_dict.get('days_since_last_update', 999) > 365:
             explanation.append("Data may be stale (no recent updates).")
-        
-        return {
-            "status": status,
-            "confidence": confidence,
-            "explanation": explanation
-        }
+        return explanation
+
+    def predict(self, place_data: dict):
+        # Single-record predict — delegates to batch for consistency
+        results = self.predict_batch([place_data])
+        return results[0]
+
+    def predict_batch(self, place_data_list: list) -> list:
+        """
+        Predict for multiple places in one model call.
+
+        Decision logic:
+        - Default assumption: OPEN (0.60 confidence).
+        - Only predict CLOSED when at least one explicit hard signal is present:
+            1. website_status == "likely_closed"  (dead domain / 404)
+            2. Name contains an explicit closure keyword
+            3. OSM disused:* / closed:* / end_date tag present
+            4. open == 0 flag in source data  (fast-path, handled before model)
+            5. Model closed_prob > 0.80  (post-retrain, only fires on genuine signals)
+        - Absence of website / phone / social is NOT evidence of closure.
+        """
+        results = [None] * len(place_data_list)
+        model_indices = []
+        model_features = []
+
+        feature_cols = self.artifacts.get('feature_names',
+                       self.artifacts.get('features', [])) if self.artifacts else []
+
+        for i, place_data in enumerate(place_data_list):
+            if not isinstance(place_data, dict):
+                place_data = {}
+
+            # Fast path: explicit ground-truth label open=0
+            explicit_open = place_data.get('open')
+            if explicit_open is not None:
+                try:
+                    if int(explicit_open) == 0:
+                        results[i] = {
+                            "status": "closed",
+                            "confidence": 0.90,
+                            "explanation": [
+                                "Data source indicates this place is permanently closed.",
+                            ],
+                        }
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            try:
+                fd = compute_features(place_data, self.artifacts)
+            except Exception as e:
+                print(f"Feature computation error: {e}")
+                results[i] = {"status": "open", "confidence": None, "explanation": []}
+                continue
+
+            model_indices.append(i)
+            model_features.append((place_data, fd))
+
+        if model_features:
+            # Run batch model inference once
+            all_fds = [fd for _, fd in model_features]
+            df_batch = pd.DataFrame(all_fds)
+            if feature_cols:
+                for c in feature_cols:
+                    if c not in df_batch.columns:
+                        df_batch[c] = 0
+                df_batch = df_batch[feature_cols]
+
+            probas = None
+            if self.model and hasattr(self.model, "predict_proba"):
+                try:
+                    probas = self.model.predict_proba(df_batch)
+                except Exception as e:
+                    print(f"Batch prediction error: {e}")
+
+            for batch_i, (result_idx, (place_data, fd)) in enumerate(
+                zip(model_indices, model_features)
+            ):
+                # Always use the real model output. None means model failed to load.
+                open_prob = float(probas[batch_i][1]) if probas is not None else None
+                closed_prob = (1.0 - open_prob) if open_prob is not None else None
+
+                # ── Hard signal checks ────────────────────────────────────────
+                # Signal 1: verified dead website
+                has_dead_website = place_data.get("website_status") == "likely_closed"
+                # Signal 2: closure keyword in name (already computed in features)
+                has_closure_name = bool(fd.get("has_closure_keyword", 0))
+                # Signal 3: OSM disused / end_date tags
+                has_osm_closure = bool(
+                    place_data.get("disused:amenity") or place_data.get("disused:shop") or
+                    place_data.get("closed:amenity") or place_data.get("closed:shop") or
+                    place_data.get("end_date")
+                )
+
+                hard_signals = sum([has_dead_website, has_closure_name, has_osm_closure])
+
+                if hard_signals >= 1:
+                    # At least one explicit closure signal — predict closed.
+                    confidence = closed_prob if closed_prob is not None else 0.70
+                    status = "closed"
+                    prediction_type = "closed"
+                elif closed_prob is not None and closed_prob > 0.90:
+                    # Signal 5: model very confident — fires only on genuine signals
+                    # with the conservative {0:1, 1:10} class weights.
+                    status, confidence = "closed", closed_prob
+                    prediction_type = "closed"
+                else:
+                    status = "open"
+                    if open_prob is not None and open_prob > 0.60:
+                        # Positive signals in the data — surface the real probability.
+                        confidence = open_prob
+                        prediction_type = "open"
+                    else:
+                        # Sparse record: no closure signals, but also no strong open
+                        # signals. Default to likely-open with null confidence so the
+                        # UI knows not to show a percentage.
+                        confidence = None
+                        prediction_type = "likely_open"
+
+                results[result_idx] = {
+                    "status": status,
+                    "confidence": confidence,
+                    "prediction_type": prediction_type,
+                    "explanation": self._build_explanation(status, fd),
+                }
+
+        return results
 
 model_service = ModelService()
 
 def predict_status(place) -> dict:
-    # If a SQLAlchemy Place object is passed, extract metadata_json. Otherwise, use it as a dict.
     place_data = place.metadata_json if hasattr(place, 'metadata_json') else place
     if not isinstance(place_data, dict):
         place_data = {}
-        
     return model_service.predict(place_data)
 
 def predict_place(place_data) -> dict:
-    # Simply call predict_status
     return predict_status(place_data)
+
+def predict_batch(place_data_list: list) -> list:
+    """Batch predict for a list of place metadata dicts."""
+    return model_service.predict_batch(place_data_list)

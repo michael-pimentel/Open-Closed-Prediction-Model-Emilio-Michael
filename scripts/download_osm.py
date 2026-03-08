@@ -41,15 +41,27 @@ def extract_place(element, is_closed=False):
     name = tags.get("name", tags.get("old_name", ""))
     if not name:
         return None
-    
+
     lat = element.get("lat")
     lon = element.get("lon")
     if not lat and "center" in element:
         lat = element["center"].get("lat")
         lon = element["center"].get("lon")
-    
+
+    # Guard: if this node was found by the "closed" query but ALSO has an active
+    # amenity or shop tag, the disused:* tag refers to a PREVIOUS tenant —
+    # the current business is still operating. Skip it to avoid false closed labels.
+    if is_closed:
+        has_active = bool(tags.get("amenity") or tags.get("shop"))
+        has_disused = bool(
+            tags.get("disused:amenity") or tags.get("disused:shop") or
+            tags.get("closed:amenity") or tags.get("closed:shop")
+        )
+        if has_active and has_disused:
+            return None  # Active business replaced a closed one — not a closure
+
     category = (
-        tags.get("amenity") or tags.get("shop") or 
+        tags.get("amenity") or tags.get("shop") or
         tags.get("disused:amenity") or tags.get("disused:shop") or
         tags.get("closed:amenity") or tags.get("closed:shop") or "unknown"
     )

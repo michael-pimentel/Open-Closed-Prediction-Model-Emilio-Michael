@@ -23,6 +23,21 @@ from sklearn.metrics import (
 import joblib
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Sync with features.py — categories with historically high closure rates
+HIGH_TURNOVER_CATEGORIES = {
+    'restaurant', 'cafe', 'bar', 'pub', 'fast_food', 'fast food', 'food_court',
+    'clothes', 'clothing', 'shoes', 'boutique', 'fashion',
+    'beauty', 'beauty salon', 'hair salon', 'hairdresser', 'nail_salon', 'nail salon',
+    'dry_cleaning', 'dry cleaning', 'laundry',
+    'gift', 'gift shop', 'souvenir', 'toy', 'toys',
+    'furniture', 'home_goods', 'home goods', 'interior_decoration',
+    'video_games', 'video games', 'bookstore', 'books',
+    'department_store', 'department store',
+    'ice_cream', 'ice cream', 'dessert', 'bakery',
+    'florist', 'flowers', 'art_gallery', 'art gallery',
+    'antique', 'antiques', 'vintage',
+}
 sys.path.insert(0, PROJECT_ROOT)
 
 # ============================================================================
@@ -178,10 +193,11 @@ def extract_features_original(df):
             'days_since_last_update': days_since_last_update,
             'name_length': name_length,
             'has_closure_keyword': has_closure_keyword,
+            'high_turnover_category': 1 if category.lower() in HIGH_TURNOVER_CATEGORIES else 0,
             'open': int(row.get('open', 1)),
             'data_source': 'original'
         })
-    
+
     return pd.DataFrame(records)
 
 
@@ -272,10 +288,11 @@ def extract_features_overture(df):
             'days_since_last_update': days_since_last_update,
             'name_length': name_length,
             'has_closure_keyword': has_closure_keyword,
+            'high_turnover_category': 1 if category.lower() in HIGH_TURNOVER_CATEGORIES else 0,
             'open': int(row.get('open', 1)),
             'data_source': 'overture'
         })
-    
+
     return pd.DataFrame(records)
 
 
@@ -315,9 +332,10 @@ def extract_features_osm(df):
             'confidence': float(metadata.get('confidence', 0.5)),
             'num_sources': 1,
             'source_mean_confidence': float(metadata.get('confidence', 0.5)),
-            'days_since_last_update': 180,  # Approximate for OSM
+            'days_since_last_update': 365,  # Match inference default (OSM sources have no update_time)
             'name_length': len(name),
             'has_closure_keyword': has_closure_keyword,
+            'high_turnover_category': 1 if category.lower() in HIGH_TURNOVER_CATEGORIES else 0,
             'open': int(row.get('open', 1)),
             'data_source': 'osm'
         })
@@ -340,19 +358,38 @@ def train_model(df):
     le = LabelEncoder()
     df['category_label'] = le.fit_transform(df['category'].fillna('unknown'))
     
-    # Digital presence score (composite feature)
+    # Composite features — match features.py compute_features output
     df['digital_presence'] = (
-        df['has_website'] + df['has_social'] + df['has_phone'] + 
+        df['has_website'] + df['has_social'] + df['has_phone'] +
         df['has_email'] + df['has_brand']
     )
-    
-    # Feature list 
+    df['metadata_completeness'] = (
+        df['has_website'] * 0.2 + df['has_social'] * 0.15 +
+        df['has_phone'] * 0.2 + df['has_email'] * 0.1 +
+        df['has_brand'] * 0.15 + df['has_address'] * 0.1 +
+        (df['num_sources'] > 1).astype(int) * 0.1
+    )
+    # Interaction features
+    df['confidence_x_sources'] = df['confidence'] * df['num_sources']
+    df['digital_x_confidence'] = df['digital_presence'] * df['confidence']
+    df['sources_x_recency'] = df['num_sources'] / (df['days_since_last_update'] + 1)
+    # Ratio features
+    df['web_to_social_ratio'] = df['num_websites'] / (df['num_socials'] + 1)
+    df['phone_to_web_ratio'] = df['num_phones'] / (df['num_websites'] + 1)
+    # Stale indicator — matches features.py threshold of 180 days
+    df['is_stale'] = (df['days_since_last_update'] > 180).astype(int)
+
+    # Feature list — must match features.py compute_features keys used at inference
     feature_cols = [
         'has_website', 'num_websites', 'has_social', 'num_socials',
         'has_phone', 'num_phones', 'has_email', 'has_brand', 'has_address',
         'confidence', 'num_sources', 'source_mean_confidence',
         'days_since_last_update', 'name_length', 'has_closure_keyword',
-        'category_freq_score', 'category_label', 'digital_presence'
+        'category_freq_score', 'category_label',
+        'digital_presence', 'metadata_completeness',
+        'confidence_x_sources', 'digital_x_confidence', 'sources_x_recency',
+        'web_to_social_ratio', 'phone_to_web_ratio',
+        'is_stale', 'high_turnover_category',
     ]
     
     X = df[feature_cols].fillna(0)
@@ -379,10 +416,13 @@ def train_model(df):
     print("TRAINING RANDOM FOREST")
     print(f"{'='*60}")
     
+    # class_weight={0:1, 1:10}: misclassifying an open place costs 10x more than
+    # a closed place. The model must have strong positive evidence to predict closed;
+    # sparse metadata (no website / phone) is NOT sufficient.
     clf = RandomForestClassifier(
         n_estimators=200,
         max_depth=12,
-        class_weight='balanced',
+        class_weight={0: 1, 1: 10},
         random_state=42,
         n_jobs=-1,
         min_samples_leaf=5,
@@ -464,7 +504,7 @@ if __name__ == "__main__":
     if len(overture_df) > 0:
         # Sample Overture data to avoid overwhelming the training set with open examples
         # Since all are open, take a random sample proportional to our needs
-        sample_size = min(len(overture_df), 5000)  # Cap at 5K open examples from Overture
+        sample_size = min(len(overture_df), 2500)  # Reduced from 5K to avoid open-class dominance
         overture_sample = overture_df.sample(n=sample_size, random_state=42)
         print(f"  Processing Overture data (sampled {sample_size} from {len(overture_df)})...")
         feat_overture = extract_features_overture(overture_sample)

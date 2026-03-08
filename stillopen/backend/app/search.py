@@ -1,19 +1,43 @@
 import json
 import os
+import time
 import pandas as pd
 import numpy as np
 from sqlalchemy import text, insert
 
 from .database import engine, Base, IS_POSTGRES
 from .models import Place
-from .predict import predict_place, predict_status
+from .predict import predict_place, predict_status, predict_batch
+from .utils import reverse_geocode
 from utils.canonical_metadata import build_canonical_metadata
 
+# ---------------------------------------------------------------------------
+# Simple in-memory query cache (TTL = 60 s, max 256 entries)
+# ---------------------------------------------------------------------------
+_CACHE_TTL = 60.0
+_CACHE_MAX = 256
+_cache: dict = {}  # key -> (timestamp, result)
 
-def _extract_place_info(row, metadata: dict) -> dict:
+
+def _cache_get(key):
+    entry = _cache.get(key)
+    if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
+        return entry[1]
+    return None
+
+
+def _cache_set(key, value):
+    if len(_cache) >= _CACHE_MAX:
+        # Evict oldest entry
+        oldest = min(_cache, key=lambda k: _cache[k][0])
+        del _cache[oldest]
+    _cache[key] = (time.monotonic(), value)
+
+
+def _extract_place_info(row, metadata: dict, address_override: str = None, pred: dict = None) -> dict:
     """
     Returns a fully-populated dict from a DB row + metadata_json.
-    All fields that are absent default to None – no placeholders generated.
+    Pass `pred` to skip running the ML model (used by batch search path).
     """
     metadata = metadata if isinstance(metadata, dict) else {}
     if "canonical" in metadata and "raw" in metadata:
@@ -23,15 +47,15 @@ def _extract_place_info(row, metadata: dict) -> dict:
         raw = metadata
         canonical = build_canonical_metadata(raw, lat=getattr(row, "lat", None), lon=getattr(row, "lon", None))
 
-    try:
-        pred = predict_status(raw)
-        status = pred.get("status", "unknown")
-        confidence = pred.get("confidence", 0.0)
-    except Exception:
-        status = "unknown"
-        confidence = 0.0
+    if pred is None:
+        try:
+            pred = predict_status(raw)
+        except Exception:
+            pred = {}
+    status = pred.get("status", "unknown")
+    confidence = pred.get("confidence", 0.0)
 
-    address = canonical.get("formatted_address") or ""
+    address = address_override or getattr(row, "address", None) or canonical.get("formatted_address") or ""
     website = canonical.get("website")
     phone = canonical.get("international_phone_number")
 
@@ -60,10 +84,14 @@ def _extract_place_info(row, metadata: dict) -> dict:
         "address": address,
         "status": status,
         "confidence": confidence,
+        "prediction_type": pred.get("prediction_type"),
         "website": website,
         "phone": phone,
         "opening_hours": opening_hours,
         "photo_url": photo_url,
+        "website_status": raw.get("website_status"),
+        "website_checked_at": raw.get("website_checked_at"),
+        "website_http_code": raw.get("website_http_code"),
     }
 
 
@@ -272,6 +300,7 @@ def load_data_to_db():
 
 def _search_postgres(
     query: str,
+    city: str = None,
     limit: int = 20,
     offset: int = 0,
     min_lat: float = None,
@@ -281,7 +310,9 @@ def _search_postgres(
 ):
     has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
     has_query = query and len(query.strip()) >= 2
-    if not has_bbox and not has_query:
+    has_city = city and len(city.strip()) >= 2
+    
+    if not has_bbox and not has_query and not has_city:
         return []
 
     with engine.connect() as conn:
@@ -300,6 +331,12 @@ def _search_postgres(
                 )
                 params["ilike_query"] = f"%{query}%"
                 params["query_str"] = query
+
+            if has_city:
+                where_parts.append(
+                    "(address ILIKE :ilike_city OR metadata_json->>'addr:city' ILIKE :ilike_city)"
+                )
+                params["ilike_city"] = f"%{city}%"
 
             if has_bbox:
                 where_parts.append(
@@ -326,6 +363,7 @@ def _search_postgres(
                     place_id,
                     name,
                     category,
+                    address,
                     source,
                     ST_X(geom::geometry) AS lon,
                     ST_Y(geom::geometry) AS lat,
@@ -336,8 +374,24 @@ def _search_postgres(
                 LIMIT :limit OFFSET :offset;
             """)
 
-            results = conn.execute(sql, params).fetchall()
-            return [_extract_place_info(row, row.metadata_json or {}) for row in results]
+            rows = conn.execute(sql, params).fetchall()
+
+            # Batch ML prediction — one model call for all rows
+            raw_metadatas = []
+            for row in rows:
+                meta = row.metadata_json or {}
+                if isinstance(meta, str):
+                    try:
+                        meta = json.loads(meta)
+                    except Exception:
+                        meta = {}
+                raw_metadatas.append(meta)
+
+            preds = predict_batch(raw_metadatas)
+            return [
+                _extract_place_info(row, meta, pred=pred)
+                for row, meta, pred in zip(rows, raw_metadatas, preds)
+            ]
 
         except Exception as e:
             print(f"PostgreSQL search error: {e}")
@@ -403,37 +457,38 @@ def _search_sqlite(
                 LIMIT :limit OFFSET :offset
             """)
 
-            results = conn.execute(sql, params).fetchall()
+            rows = conn.execute(sql, params).fetchall()
 
-            out = []
-            for row in results:
-                address = row.address or "Unknown Location"
-
+            # Parse metadata for all rows first
+            metadatas = []
+            for row in rows:
                 metadata = {}
                 if row.metadata_json:
                     try:
                         metadata = json.loads(row.metadata_json)
                     except Exception:
                         pass
+                metadatas.append(metadata)
 
-                try:
-                    pred = predict_place(metadata)
-                    status = pred.get('status', 'unknown')
-                    confidence = pred.get('confidence', 0.0)
-                except Exception:
-                    status = 'unknown'
-                    confidence = 0.0
+            # Batch ML prediction — one model call for all rows
+            preds = predict_batch(metadatas)
 
+            out = []
+            for row, metadata, pred in zip(rows, metadatas, preds):
                 out.append({
                     "id": str(row.place_id),
                     "name": row.name,
-                    "address": address,
+                    "address": row.address or "Unknown Location",
                     "category": getattr(row, 'category', None),
                     "source": getattr(row, 'source', None),
                     "lat": getattr(row, 'lat', None),
                     "lon": getattr(row, 'lon', None),
-                    "status": status,
-                    "confidence": confidence
+                    "status": pred.get('status', 'unknown'),
+                    "confidence": pred.get('confidence'),
+                    "prediction_type": pred.get('prediction_type'),
+                    "website_status": metadata.get("website_status"),
+                    "website_checked_at": metadata.get("website_checked_at"),
+                    "website_http_code": metadata.get("website_http_code"),
                 })
 
             return out
@@ -444,6 +499,7 @@ def _search_sqlite(
 
 def search_places(
     query: str,
+    city: str = None,
     limit: int = 20,
     offset: int = 0,
     min_lat: float = None,
@@ -452,21 +508,37 @@ def search_places(
     max_lon: float = None,
 ):
     has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
-    if not has_bbox and (not query or len(query.strip()) < 2):
+    has_query = query and len(query.strip()) >= 2
+    has_city = city and len(city.strip()) >= 2
+
+    if not has_bbox and not has_query and not has_city:
         return []
 
+    cache_key = (query, city, limit, offset, min_lat, max_lat, min_lon, max_lon)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     if IS_POSTGRES:
-        return _search_postgres(
-            query, limit, offset,
-            min_lat=min_lat, max_lat=max_lat,
-            min_lon=min_lon, max_lon=max_lon,
+        result = _search_postgres(
+            query,
+            city=city,
+            limit=limit,
+            offset=offset,
+            min_lat=min_lat,
+            max_lat=max_lat,
+            min_lon=min_lon,
+            max_lon=max_lon,
         )
     else:
-        return _search_sqlite(
+        result = _search_sqlite(
             query, limit, offset,
             min_lat=min_lat, max_lat=max_lat,
             min_lon=min_lon, max_lon=max_lon,
         )
+
+    _cache_set(cache_key, result)
+    return result
 
 
 # =============================================================================
@@ -530,7 +602,7 @@ def _get_place_record_postgres(place_id: str):
         try:
             sql = text("""
                 SELECT
-                    place_id, name, category, source,
+                    place_id, name, category, address, source,
                     ST_X(geom::geometry) AS lon,
                     ST_Y(geom::geometry) AS lat,
                     metadata_json
@@ -543,7 +615,28 @@ def _get_place_record_postgres(place_id: str):
             metadata = row.metadata_json or {}
             if isinstance(metadata, str):
                 metadata = json.loads(metadata)
-            return _extract_place_info(row, metadata)
+
+            # --- JIT Reverse Geocoding ---
+            # If address is missing, try to fetch it and update DB
+            current_address = getattr(row, "address", None)
+            if not current_address and row.lat and row.lon:
+                try:
+                    new_address = reverse_geocode(row.lat, row.lon)
+                    if new_address:
+                        # Update database
+                        with engine.begin() as update_conn:
+                            update_conn.execute(
+                                text("UPDATE places SET address = :addr, metadata_json = metadata_json || jsonb_build_object('address', :addr) WHERE place_id = :pid"),
+                                {"addr": new_address, "pid": place_id}
+                            )
+                        # Re-fetch row or just manually update current_address
+                        current_address = new_address
+                except Exception as e:
+                    print(f"JIT Geocoding failed: {e}")
+
+            # Return info (manually inject current_address into row if we re-fetch, 
+            # or just rely on _extract_place_info using row.address)
+            return _extract_place_info(row, metadata, address_override=current_address)
         except Exception as e:
             print(f"PostgreSQL get_place_record error: {e}")
             return None
@@ -571,10 +664,12 @@ def _get_place_record_sqlite(place_id: str):
             try:
                 pred = predict_place(metadata)
                 status = pred.get('status', 'unknown')
-                confidence = pred.get('confidence', 0.0)
+                confidence = pred.get('confidence')
+                prediction_type = pred.get('prediction_type')
             except Exception:
                 status = 'unknown'
-                confidence = 0.0
+                confidence = None
+                prediction_type = None
 
             return {
                 "id": str(row.place_id),
@@ -587,6 +682,10 @@ def _get_place_record_sqlite(place_id: str):
                 "metadata_json": metadata,
                 "status": status,
                 "confidence": confidence,
+                "prediction_type": prediction_type,
+                "website_status": metadata.get("website_status"),
+                "website_checked_at": metadata.get("website_checked_at"),
+                "website_http_code": metadata.get("website_http_code"),
             }
         except Exception as e:
             print(f"SQLite get_place_record error: {e}")

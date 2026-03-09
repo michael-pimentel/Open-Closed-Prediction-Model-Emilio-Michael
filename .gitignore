@@ -40,3 +40,6 @@ build/
 .npm
 uvicorn.log 
 frontend.log
+scripts/data/*.parquet
+scripts/data/*.csv
+california_load.log

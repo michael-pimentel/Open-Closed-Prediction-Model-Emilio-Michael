@@ -43,3 +43,8 @@ frontend.log
 scripts/data/*.parquet
 scripts/data/*.csv
 california_load.log
+*.parquet
+*.csv
+*.log
+data/
+scripts/data/

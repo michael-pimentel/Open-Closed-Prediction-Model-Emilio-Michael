@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Dual-mode database: PostgreSQL for production, SQLite for local development
 # Set DATABASE_URL env var for PostgreSQL, otherwise defaults to SQLite

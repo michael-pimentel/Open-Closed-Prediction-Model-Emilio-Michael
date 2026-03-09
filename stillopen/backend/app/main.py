@@ -6,8 +6,8 @@ import requests
 from datetime import datetime, timezone
 from sqlalchemy import text
 
-from .models import SearchResult, PlaceDetail
-from .search import search_places, get_place_record, load_data_to_db
+from .models import SearchResult, SearchResponse, PlaceDetail
+from .search import search_places, get_place_record, load_data_to_db, ensure_indexes
 from .database import engine, Base, IS_POSTGRES
 
 # ---------------------------------------------------------------------------
@@ -115,6 +115,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     load_data_to_db()
+    ensure_indexes()
 
 @app.get("/geocode/city")
 def geocode_city_endpoint(city: str):
@@ -204,14 +205,42 @@ def geocode_city_endpoint(city: str):
 def health():
     return {"status": "ok"}
 
-@app.get("/search", response_model=List[SearchResult])
-def search(q: str = "", city: str = None, limit: int = 20, offset: int = 0,
-           min_lat: float = None, max_lat: float = None,
-           min_lon: float = None, max_lon: float = None):
-    print(f"DEBUG: Search request - q: '{q}', city: '{city}', bbox: [{min_lat}, {max_lat}, {min_lon}, {max_lon}]")
-    return search_places(query=q, city=city, limit=limit, offset=offset,
-                         min_lat=min_lat, max_lat=max_lat,
-                         min_lon=min_lon, max_lon=max_lon)
+@app.get("/search", response_model=SearchResponse)
+def search(
+    q: str = "",
+    city: str = None,
+    limit: int = 50,
+    offset: int = 0,
+    page: int = None,
+    min_lat: float = None,
+    max_lat: float = None,
+    min_lon: float = None,
+    max_lon: float = None,
+):
+    limit = max(1, min(limit, 1000))
+
+    # ?page=N takes priority over raw offset
+    if page is not None and page >= 1:
+        offset = (page - 1) * limit
+        actual_page = page
+    else:
+        actual_page = max(1, (offset // limit) + 1) if limit > 0 else 1
+
+    print(
+        f"DEBUG: Search q='{q}' city='{city}' limit={limit} page={actual_page} "
+        f"offset={offset} bbox=[{min_lat},{max_lat},{min_lon},{max_lon}]"
+    )
+    return search_places(
+        query=q,
+        city=city,
+        limit=limit,
+        offset=offset,
+        page=actual_page,
+        min_lat=min_lat,
+        max_lat=max_lat,
+        min_lon=min_lon,
+        max_lon=max_lon,
+    )
 
 @app.get("/place/{place_id}", response_model=PlaceDetail)
 def get_place_details(place_id: str):

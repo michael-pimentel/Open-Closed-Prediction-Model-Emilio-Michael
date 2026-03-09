@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 import pandas as pd
 import numpy as np
@@ -295,70 +296,138 @@ def load_data_to_db():
 
 
 # =============================================================================
+# INDEX MANAGEMENT
+# =============================================================================
+
+_indexes_ensured = False
+
+
+def ensure_indexes():
+    """Create search/spatial indexes if they don't already exist. Safe to call repeatedly."""
+    global _indexes_ensured
+    if _indexes_ensured:
+        return
+    if not IS_POSTGRES:
+        _indexes_ensured = True
+        return
+    print("Ensuring DB indexes...")
+    ddl_statements = [
+        """CREATE INDEX IF NOT EXISTS places_geom_idx
+           ON places USING GIST(geom)""",
+        """CREATE INDEX IF NOT EXISTS places_fts_idx
+           ON places USING GIN(
+               to_tsvector('english', coalesce(name,'') || ' ' || coalesce(category,''))
+           )""",
+        """CREATE INDEX IF NOT EXISTS places_category_idx
+           ON places(category)""",
+        """CREATE INDEX IF NOT EXISTS places_city_meta_idx
+           ON places((metadata_json->>'city'))""",
+    ]
+    try:
+        with engine.begin() as conn:
+            for ddl in ddl_statements:
+                conn.execute(text(ddl))
+        print("Indexes ready.")
+    except Exception as e:
+        print(f"Index creation warning (non-fatal): {e}")
+    _indexes_ensured = True
+
+
+# =============================================================================
+# POSTGRES SEARCH — HELPERS
+# =============================================================================
+
+def _make_tsquery(q: str):
+    """Convert a user query string into a prefix-matching tsquery string.
+
+    "rest" → "rest:*"
+    "santa cruz coffee" → "santa:* & cruz:* & coffee:*"
+    Returns None if no valid words found.
+    """
+    words = re.findall(r"[a-zA-Z0-9]+", q)
+    if not words:
+        return None
+    return " & ".join(f"{w.lower()}:*" for w in words)
+
+
+# =============================================================================
 # POSTGRES SEARCH
 # =============================================================================
 
 def _search_postgres(
     query: str,
     city: str = None,
-    limit: int = 20,
+    limit: int = 50,
     offset: int = 0,
     min_lat: float = None,
     max_lat: float = None,
     min_lon: float = None,
     max_lon: float = None,
 ):
+    """Returns (results_list, total_count)."""
     has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
-    has_query = query and len(query.strip()) >= 2
-    has_city = city and len(city.strip()) >= 2
-    
-    if not has_bbox and not has_query and not has_city:
-        return []
+    has_query = bool(query and query.strip())
+    has_city = bool(city and len(city.strip()) >= 2)
 
     with engine.connect() as conn:
         try:
-            params = {
-                "limit": limit,
-                "offset": offset,
-            }
+            params: dict = {"limit": limit, "offset": offset}
+            where_parts: list = []
+            order_parts: list = []
 
-            # Build WHERE clauses
-            where_parts = []
-
+            # --- Text search via FTS + ILIKE fallback ---
             if has_query:
-                where_parts.append(
-                    "(name ILIKE :ilike_query OR similarity(name, :query_str) > 0.15)"
-                )
-                params["ilike_query"] = f"%{query}%"
-                params["query_str"] = query
+                tsq = _make_tsquery(query)
+                if tsq:
+                    where_parts.append(
+                        "(to_tsvector('english', coalesce(name,'') || ' ' || coalesce(category,''))"
+                        " @@ to_tsquery('english', :tsq)"
+                        " OR name ILIKE :ilike_q)"
+                    )
+                    params["tsq"] = tsq
+                    order_parts.append(
+                        "ts_rank("
+                        "  to_tsvector('english', coalesce(name,'') || ' ' || coalesce(category,'')),"
+                        "  to_tsquery('english', :tsq)"
+                        ") DESC"
+                    )
+                else:
+                    where_parts.append("name ILIKE :ilike_q")
+                params["ilike_q"] = f"%{query.strip()}%"
 
+            # --- City filter (metadata city field + address) ---
             if has_city:
                 where_parts.append(
-                    "(address ILIKE :ilike_city OR metadata_json->>'addr:city' ILIKE :ilike_city)"
+                    "(address ILIKE :ilike_city"
+                    " OR metadata_json->>'city' ILIKE :ilike_city"
+                    " OR metadata_json->>'addr:city' ILIKE :ilike_city)"
                 )
-                params["ilike_city"] = f"%{city}%"
+                params["ilike_city"] = f"%{city.strip()}%"
 
+            # --- Bounding-box spatial filter ---
             if has_bbox:
                 where_parts.append(
                     "geom && ST_MakeEnvelope(:min_lon, :min_lat, :max_lon, :max_lat, 4326)"
                 )
                 params.update({
-                    "min_lon": min_lon,
-                    "min_lat": min_lat,
-                    "max_lon": max_lon,
-                    "max_lat": max_lat,
+                    "min_lon": min_lon, "min_lat": min_lat,
+                    "max_lon": max_lon, "max_lat": max_lat,
                 })
 
             where_clause = " AND ".join(where_parts) if where_parts else "TRUE"
 
-            # Use name similarity for ordering when a text query is present,
-            # otherwise fall back to name alphabetical.
-            if has_query:
-                order_clause = "similarity(name, :query_str) DESC"
-            else:
-                order_clause = "name"
+            # Fallback ordering when no text query
+            if not order_parts:
+                order_parts.append("(metadata_json->>'confidence')::numeric DESC NULLS LAST")
+                order_parts.append("name ASC")
+            order_clause = ", ".join(order_parts)
 
-            sql = text(f"""
+            # --- COUNT for pagination ---
+            count_sql = text(f"SELECT COUNT(*) FROM places WHERE {where_clause}")
+            total_count = conn.execute(count_sql, params).scalar() or 0
+
+            # --- Lean SELECT — no metadata_json in response, but fetch for ML ---
+            data_sql = text(f"""
                 SELECT
                     place_id,
                     name,
@@ -367,16 +436,21 @@ def _search_postgres(
                     source,
                     ST_X(geom::geometry) AS lon,
                     ST_Y(geom::geometry) AS lat,
+                    COALESCE(metadata_json->>'city', metadata_json->>'addr:city', '') AS city,
+                    COALESCE(metadata_json->>'state', metadata_json->>'addr:state', '') AS state,
+                    metadata_json->>'website_status'    AS website_status,
+                    metadata_json->>'website_checked_at' AS website_checked_at,
+                    (metadata_json->>'website_http_code')::int AS website_http_code,
                     metadata_json
                 FROM places
                 WHERE {where_clause}
                 ORDER BY {order_clause}
-                LIMIT :limit OFFSET :offset;
+                LIMIT :limit OFFSET :offset
             """)
 
-            rows = conn.execute(sql, params).fetchall()
+            rows = conn.execute(data_sql, params).fetchall()
 
-            # Batch ML prediction — one model call for all rows
+            # --- Batch ML prediction ---
             raw_metadatas = []
             for row in rows:
                 meta = row.metadata_json or {}
@@ -388,14 +462,46 @@ def _search_postgres(
                 raw_metadatas.append(meta)
 
             preds = predict_batch(raw_metadatas)
-            return [
-                _extract_place_info(row, meta, pred=pred)
-                for row, meta, pred in zip(rows, raw_metadatas, preds)
-            ]
+
+            results = []
+            for row, meta, pred in zip(rows, raw_metadatas, preds):
+                # Phone/website: prefer top-level scalar, fall back to first array element
+                def _first_value(arr):
+                    if not isinstance(arr, list) or not arr:
+                        return None
+                    first = arr[0]
+                    if isinstance(first, dict):
+                        return first.get("value") or first.get("phone") or first.get("url")
+                    return str(first) if first else None
+
+                phone = meta.get("phone") or _first_value(meta.get("phones"))
+                website = meta.get("website") or _first_value(meta.get("websites"))
+                results.append({
+                    "id": str(row.place_id),
+                    "name": row.name or "",
+                    "category": row.category,
+                    "address": row.address or "",
+                    "city": row.city or "",
+                    "state": row.state or "",
+                    "source": row.source,
+                    "lat": row.lat,
+                    "lon": row.lon,
+                    "status": pred.get("status", "unknown"),
+                    "confidence": pred.get("confidence"),
+                    "prediction_type": pred.get("prediction_type"),
+                    "phone": phone,
+                    "website": website,
+                    "website_status": row.website_status,
+                    "website_checked_at": row.website_checked_at,
+                    "website_http_code": row.website_http_code,
+                })
+
+            return results, total_count
 
         except Exception as e:
             print(f"PostgreSQL search error: {e}")
-            return []
+            import traceback; traceback.print_exc()
+            return [], 0
 
 
 # =============================================================================
@@ -404,27 +510,24 @@ def _search_postgres(
 
 def _search_sqlite(
     query: str,
-    limit: int = 20,
+    limit: int = 50,
     offset: int = 0,
     min_lat: float = None,
     max_lat: float = None,
     min_lon: float = None,
     max_lon: float = None,
 ):
+    """Returns (results_list, total_count)."""
     has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
-    has_query = query and len(query.strip()) >= 2
-    if not has_bbox and not has_query:
-        return []
+    has_query = bool(query and query.strip())
 
     with engine.connect() as conn:
         try:
             where_parts = []
-            params = {"limit": limit, "offset": offset}
+            params: dict = {"limit": limit, "offset": offset}
 
             if has_query:
-                where_parts.append(
-                    "(name LIKE :ilike_query OR category LIKE :ilike_query)"
-                )
+                where_parts.append("(name LIKE :ilike_query OR category LIKE :ilike_query)")
                 params["ilike_query"] = f"%{query}%"
                 params["exact_query"] = query
                 params["start_query"] = f"{query}%"
@@ -434,20 +537,23 @@ def _search_sqlite(
                     "lat BETWEEN :min_lat AND :max_lat AND lon BETWEEN :min_lon AND :max_lon"
                 )
                 params.update({
-                    "min_lat": min_lat,
-                    "max_lat": max_lat,
-                    "min_lon": min_lon,
-                    "max_lon": max_lon,
+                    "min_lat": min_lat, "max_lat": max_lat,
+                    "min_lon": min_lon, "max_lon": max_lon,
                 })
 
             where_clause = " AND ".join(where_parts) if where_parts else "1=1"
 
             if has_query:
-                order_clause = """CASE WHEN LOWER(name) = LOWER(:exact_query) THEN 0
-                         WHEN LOWER(name) LIKE LOWER(:start_query) THEN 1
-                         ELSE 2 END, name"""
+                order_clause = (
+                    "CASE WHEN LOWER(name) = LOWER(:exact_query) THEN 0"
+                    "     WHEN LOWER(name) LIKE LOWER(:start_query) THEN 1"
+                    "     ELSE 2 END, name"
+                )
             else:
                 order_clause = "name"
+
+            count_sql = text(f"SELECT COUNT(*) FROM places WHERE {where_clause}")
+            total_count = conn.execute(count_sql, params).scalar() or 0
 
             sql = text(f"""
                 SELECT place_id, name, address, category, source, lat, lon, metadata_json
@@ -459,60 +565,61 @@ def _search_sqlite(
 
             rows = conn.execute(sql, params).fetchall()
 
-            # Parse metadata for all rows first
             metadatas = []
             for row in rows:
-                metadata = {}
+                meta = {}
                 if row.metadata_json:
                     try:
-                        metadata = json.loads(row.metadata_json)
+                        meta = json.loads(row.metadata_json)
                     except Exception:
                         pass
-                metadatas.append(metadata)
+                metadatas.append(meta)
 
-            # Batch ML prediction — one model call for all rows
             preds = predict_batch(metadatas)
 
             out = []
-            for row, metadata, pred in zip(rows, metadatas, preds):
+            for row, meta, pred in zip(rows, metadatas, preds):
+                city = meta.get("city", "")
+                state = meta.get("state", "")
                 out.append({
                     "id": str(row.place_id),
-                    "name": row.name,
-                    "address": row.address or "Unknown Location",
-                    "category": getattr(row, 'category', None),
-                    "source": getattr(row, 'source', None),
-                    "lat": getattr(row, 'lat', None),
-                    "lon": getattr(row, 'lon', None),
-                    "status": pred.get('status', 'unknown'),
-                    "confidence": pred.get('confidence'),
-                    "prediction_type": pred.get('prediction_type'),
-                    "website_status": metadata.get("website_status"),
-                    "website_checked_at": metadata.get("website_checked_at"),
-                    "website_http_code": metadata.get("website_http_code"),
+                    "name": row.name or "",
+                    "address": row.address or "",
+                    "city": city,
+                    "state": state,
+                    "category": getattr(row, "category", None),
+                    "source": getattr(row, "source", None),
+                    "lat": getattr(row, "lat", None),
+                    "lon": getattr(row, "lon", None),
+                    "status": pred.get("status", "unknown"),
+                    "confidence": pred.get("confidence"),
+                    "prediction_type": pred.get("prediction_type"),
+                    "phone": meta.get("phone"),
+                    "website": meta.get("website"),
+                    "website_status": meta.get("website_status"),
+                    "website_checked_at": meta.get("website_checked_at"),
+                    "website_http_code": meta.get("website_http_code"),
                 })
 
-            return out
+            return out, total_count
         except Exception as e:
             print(f"SQLite search error: {e}")
-            return []
+            return [], 0
 
 
 def search_places(
     query: str,
     city: str = None,
-    limit: int = 20,
+    limit: int = 50,
     offset: int = 0,
+    page: int = 1,
     min_lat: float = None,
     max_lat: float = None,
     min_lon: float = None,
     max_lon: float = None,
-):
-    has_bbox = all(v is not None for v in [min_lat, max_lat, min_lon, max_lon])
-    has_query = query and len(query.strip()) >= 2
-    has_city = city and len(city.strip()) >= 2
-
-    if not has_bbox and not has_query and not has_city:
-        return []
+) -> dict:
+    """Return a SearchResponse-compatible dict with results + pagination metadata."""
+    limit = max(1, min(limit, 1000))
 
     cache_key = (query, city, limit, offset, min_lat, max_lat, min_lon, max_lon)
     cached = _cache_get(cache_key)
@@ -520,7 +627,7 @@ def search_places(
         return cached
 
     if IS_POSTGRES:
-        result = _search_postgres(
+        results, total_count = _search_postgres(
             query,
             city=city,
             limit=limit,
@@ -531,14 +638,26 @@ def search_places(
             max_lon=max_lon,
         )
     else:
-        result = _search_sqlite(
+        results, total_count = _search_sqlite(
             query, limit, offset,
             min_lat=min_lat, max_lat=max_lat,
             min_lon=min_lon, max_lon=max_lon,
         )
 
-    _cache_set(cache_key, result)
-    return result
+    total_pages = max(1, (total_count + limit - 1) // limit)
+
+    response = {
+        "results": results,
+        "total_count": total_count,
+        "page": page,
+        "total_pages": total_pages,
+        "limit": limit,
+        "offset": offset,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+    }
+    _cache_set(cache_key, response)
+    return response
 
 
 # =============================================================================

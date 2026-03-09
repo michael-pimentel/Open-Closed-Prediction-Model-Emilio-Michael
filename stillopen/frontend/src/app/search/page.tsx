@@ -14,11 +14,14 @@ export default async function SearchPage({
         : typeof params.l === 'string'
         ? params.l
         : '';
+    const page = typeof params.page === 'string'
+        ? Math.max(1, parseInt(params.page, 10) || 1)
+        : 1;
 
     if (city) {
         return (
             <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <CitySearchResults query={query} city={city} />
+                <CitySearchResults query={query} city={city} initialPage={page} />
             </div>
         );
     }
@@ -32,7 +35,7 @@ export default async function SearchPage({
                     </h1>
                 </div>
             )}
-            <SearchResults query={query} />
+            <SearchResults query={query} initialPage={page} />
         </div>
     );
 }

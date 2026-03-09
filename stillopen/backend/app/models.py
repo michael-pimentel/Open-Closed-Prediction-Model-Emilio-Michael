@@ -13,20 +13,31 @@ class SearchResult(BaseModel):
     name: str
     address: str
     category: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
     lat: Optional[float] = None
     lon: Optional[float] = None
     source: Optional[str] = None
-    metadata_json: Optional[dict] = None
+    # metadata_json intentionally omitted from list results — see /place/{id} for full detail
     status: str
     confidence: Optional[float] = None        # null when prediction_type == "likely_open"
     prediction_type: Optional[str] = None     # "open"|"likely_open"|"closed"
     website: Optional[str] = None
     phone: Optional[str] = None
-    opening_hours: Optional[str] = None
-    photo_url: Optional[str] = None
     website_status: Optional[str] = None       # "active"|"likely_closed"|"inconclusive"|"unchecked"
     website_checked_at: Optional[str] = None   # ISO-8601 timestamp of last verification
     website_http_code: Optional[int] = None    # HTTP status code from last check
+
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult]
+    total_count: int
+    page: int
+    total_pages: int
+    limit: int
+    offset: int
+    has_next: bool
+    has_prev: bool
 
 class PlaceDetail(BaseModel):
     id: str

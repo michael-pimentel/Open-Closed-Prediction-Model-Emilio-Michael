@@ -1,13 +1,15 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { geocodeCity } from "../lib/CitySearchService";
 import { formatTag } from "../lib/formatters";
 import { searchPlaces } from "../lib/api";
-import type { SearchResultType } from "./SearchResults";
+import type { SearchResultType } from "../lib/api";
 import StatusBadge from "./StatusBadge";
+import PaginationBar from "./PaginationBar";
 import Link from "next/link";
 import {
-    Loader2, AlertCircle, MapPin, Tag,
+    AlertCircle, MapPin, Tag,
     CheckCircle, XCircle, List, Map as MapIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -21,38 +23,37 @@ const ResultsMap = dynamic(() => import("./ResultsMap"), {
     ),
 });
 
-// Ray-casting point-in-polygon. GeoJSON coords are [lon, lat].
-function pointInRing(lon: number, lat: number, ring: number[][]): boolean {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const [xi, yi] = ring[i];
-        const [xj, yj] = ring[j];
-        if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
-            inside = !inside;
-        }
-    }
-    return inside;
-}
-
-function pointInGeoJSON(lat: number, lon: number, geojson: object): boolean {
-    const g = geojson as { type: string; coordinates: unknown };
-    if (g.type === "Polygon") return pointInRing(lon, lat, (g.coordinates as number[][][])[0]);
-    if (g.type === "MultiPolygon")
-        return (g.coordinates as number[][][][]).some((poly) => pointInRing(lon, lat, poly[0]));
-    return true;
-}
-
 function toTitleCase(str: string): string {
     return str.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 type SortKey = "confidence" | "name" | "status";
 
-const MAX_RESULTS = 300;
-const BATCH_SIZE = 100;
-const DISPLAY_CAP = 50;
+const PAGE_SIZES = [25, 50, 100, 250, 500, 1000];
+const DEFAULT_LIMIT = 50;
 
-export default function CitySearchResults({ query, city }: { query: string; city: string }) {
+function SkeletonGrid() {
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="h-36 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
+            ))}
+        </div>
+    );
+}
+
+export default function CitySearchResults({
+    query,
+    city,
+    initialPage = 1,
+}: {
+    query: string;
+    city: string;
+    initialPage?: number;
+}) {
+    const router = useRouter();
+    const pathname = usePathname();
+
     const [results, setResults] = useState<SearchResultType[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -61,105 +62,111 @@ export default function CitySearchResults({ query, city }: { query: string; city
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
     const [sortKey, setSortKey] = useState<SortKey>("confidence");
     const [mobileView, setMobileView] = useState<"list" | "map">("list");
-    const [isDark, setIsDark] = useState(false);
 
+    // Pagination state
+    const [page, setPage] = useState(initialPage);
+    const [totalCount, setTotalCount] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [limit, setLimit] = useState<number>(() => DEFAULT_LIMIT);
+
+    // Track whether geocoding has completed for this city
+    const geocodeRef = useRef<{
+        city: string;
+        bbox: { min_lat: number; max_lat: number; min_lon: number; max_lon: number } | null;
+        resolved: string;
+        boundary: object | null;
+    } | null>(null);
+
+    // Read saved page size from localStorage on mount
     useEffect(() => {
-        const el = document.documentElement;
-        setIsDark(el.classList.contains("dark"));
-        const observer = new MutationObserver(() => setIsDark(el.classList.contains("dark")));
-        observer.observe(el, { attributes: true, attributeFilter: ["class"] });
-        return () => observer.disconnect();
+        const saved = localStorage.getItem("stillopen_page_size");
+        if (saved) {
+            const n = parseInt(saved, 10);
+            if (PAGE_SIZES.includes(n)) setLimit(n);
+        }
     }, []);
 
+    // Reset page when query/city changes
+    useEffect(() => {
+        setPage(initialPage);
+    }, [initialPage]);
+
+    // Phase 1: geocode city (once per city value)
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
+        setBoundary(null);
+        setResolvedCity(null);
         setError(null);
         setResults([]);
-        setBoundary(null);
-        setCategoryFilter(null);
+        setTotalCount(0);
+        setTotalPages(1);
+        geocodeRef.current = null;
 
-        async function run() {
+        async function geocode() {
             try {
                 const geoResult = await geocodeCity(city);
-
-                if (!geoResult) {
-                    // FALLBACK: If geocoding fails (but NOT throttled), try searching directly by city name in our DB
-                    if (!cancelled) {
-                        try {
-                            const batch = await searchPlaces(query, BATCH_SIZE, undefined, 0, city);
-                            if (batch && batch.length > 0) {
-                                setResults(batch);
-                                setResolvedCity(city);
-                                setLoading(false);
-                                return;
-                            }
-                        } catch (e) {
-                            console.error("Fallback search failed:", e);
-                        }
-
-                        setError(
-                            `Could not find city "${city}". Try adding a state abbreviation, e.g. "${city}, CA".`
-                        );
-                        setLoading(false);
-                    }
-                    return;
-                }
                 if (cancelled) return;
 
-                // Use first segment of display name as the short city name
-                setResolvedCity(geoResult.displayName.split(",")[0].trim());
-                setBoundary(geoResult.boundary);
-
-                // Paginate until we hit MAX_RESULTS or run out of data.
-                let offset = 0;
-                let allResults: SearchResultType[] = [];
-
-                while (offset < MAX_RESULTS) {
-                    if (cancelled) return;
-                    const batch: SearchResultType[] = await searchPlaces(
-                        query,
-                        BATCH_SIZE,
-                        geoResult.bbox,
-                        offset
-                    );
-                    if (batch.length === 0) break;
-
-                    const withinCity = geoResult.boundary
-                        ? batch.filter((r) =>
-                            r.lat != null && r.lon != null
-                                ? pointInGeoJSON(r.lat!, r.lon!, geoResult.boundary as object)
-                                : true
-                        )
-                        : batch;
-
-                    allResults = [...allResults, ...withinCity];
-                    offset += BATCH_SIZE;
-                    if (batch.length < BATCH_SIZE) break;
+                if (!geoResult) {
+                    // Fallback: search by city name in DB directly (no bbox)
+                    geocodeRef.current = { city, bbox: null, resolved: city, boundary: null };
+                    setResolvedCity(city);
+                } else {
+                    const resolved = geoResult.displayName.split(",")[0].trim();
+                    geocodeRef.current = {
+                        city,
+                        bbox: geoResult.bbox,
+                        resolved,
+                        boundary: geoResult.boundary ?? null,
+                    };
+                    setResolvedCity(resolved);
+                    setBoundary(geoResult.boundary ?? null);
                 }
-
+            } catch (err: unknown) {
                 if (!cancelled) {
-                    setResults(allResults);
-                    setLoading(false);
-                }
-            } catch (err: any) {
-                if (!cancelled) {
-                    if (err.message === "THROTTLED") {
+                    if (err instanceof Error && err.message === "THROTTLED") {
                         setError("Service temporarily throttled. Please try again in 60 seconds.");
                     } else {
-                        setError(err instanceof Error ? err.message : "An unknown error occurred.");
+                        setError(err instanceof Error ? err.message : "Could not geocode city.");
                     }
                     setLoading(false);
                 }
             }
         }
 
-        run();
+        geocode();
+        return () => { cancelled = true; };
+    }, [city]);
 
-        return () => {
-            cancelled = true;
-        };
-    }, [query, city]);
+    // Phase 2: fetch places once geocoding is done + on page/limit/query changes
+    useEffect(() => {
+        if (!geocodeRef.current) return; // geocoding not done yet
+        if (geocodeRef.current.city !== city) return; // stale
+
+        let cancelled = false;
+        setLoading(true);
+        setResults([]);
+
+        const { bbox: activeBbox } = geocodeRef.current;
+
+        searchPlaces(query, limit, activeBbox ?? undefined, (page - 1) * limit, activeBbox ? undefined : city, page)
+            .then((data) => {
+                if (cancelled) return;
+                setResults(data.results);
+                setTotalCount(data.total_count);
+                setTotalPages(data.total_pages);
+                setLoading(false);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) {
+                    setError(err instanceof Error ? err.message : "Search failed.");
+                    setLoading(false);
+                }
+            });
+
+        return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resolvedCity, query, page, limit]);
 
     const categories = useMemo(() => {
         const cats = new Set(results.map((r) => r.category).filter(Boolean) as string[]);
@@ -187,8 +194,28 @@ export default function CitySearchResults({ query, city }: { query: string; city
         return list;
     }, [results, categoryFilter, sortKey]);
 
-    const displayedResults = sorted.slice(0, DISPLAY_CAP);
-    const isCapped = sorted.length > DISPLAY_CAP;
+    const handlePageChange = (newPage: number) => {
+        setPage(newPage);
+        setCategoryFilter(null); // reset filter on page change
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
+        params.set("city", city);
+        params.set("page", String(newPage));
+        router.push(`${pathname}?${params.toString()}`);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const handleLimitChange = (newLimit: number) => {
+        localStorage.setItem("stillopen_page_size", String(newLimit));
+        setLimit(newLimit);
+        setPage(1);
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
+        params.set("city", city);
+        params.set("page", "1");
+        router.push(`${pathname}?${params.toString()}`);
+    };
+
     const displayCity = resolvedCity || city;
     const queryLabel = query ? toTitleCase(query) : "All Places";
 
@@ -202,11 +229,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
                         <div key={i} className="h-6 w-16 bg-gray-100 dark:bg-gray-800 rounded-full animate-pulse" />
                     ))}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Array.from({ length: 9 }).map((_, i) => (
-                        <div key={i} className="h-36 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
-                    ))}
-                </div>
+                <SkeletonGrid />
             </div>
         );
     }
@@ -228,7 +251,7 @@ export default function CitySearchResults({ query, city }: { query: string; city
                 <MapPin className="w-12 h-12 text-gray-300 dark:text-gray-600" />
                 <h2 className="text-xl font-bold text-gray-700 dark:text-gray-300">No results found</h2>
                 <p className="text-gray-500 dark:text-gray-400 max-w-sm">
-                    No &ldquo;{query}&rdquo; found in {displayCity}. Try a broader term like{" "}
+                    No &ldquo;{query || "places"}&rdquo; found in {displayCity}. Try a broader term like{" "}
                     &ldquo;food&rdquo; or &ldquo;shop&rdquo;, or check the city name.
                 </p>
             </div>
@@ -247,30 +270,42 @@ export default function CitySearchResults({ query, city }: { query: string; city
                             {displayCity}
                         </>
                     ) : (
-                        <>
-                            All Places in{" "}
-                            <span className="text-emerald-500">{displayCity}</span>
-                        </>
+                        <>All Places in <span className="text-emerald-500">{displayCity}</span></>
                     )}
                 </h1>
                 <p className="text-gray-400 text-sm">
-                    {results.length} result{results.length !== 1 ? "s" : ""}
-                    {isCapped && <span className="text-amber-500 ml-2 font-semibold">(showing top {DISPLAY_CAP})</span>}
+                    {totalCount.toLocaleString()} result{totalCount !== 1 ? "s" : ""}
                 </p>
             </div>
 
             {/* Stats bar */}
             <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
-                    <CheckCircle className="w-4 h-4" />
-                    {stats.open} open now
+                    <CheckCircle className="w-4 h-4" /> {stats.open} open
                 </div>
                 <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-bold text-sm">
-                    <XCircle className="w-4 h-4" />
-                    {stats.closed} closed
+                    <XCircle className="w-4 h-4" /> {stats.closed} closed
                 </div>
                 <div className="text-gray-400 text-sm">
                     {stats.total - stats.open - stats.closed} unknown
+                </div>
+                {/* Page size selector */}
+                <div className="ml-auto flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400 hidden sm:inline">Show:</span>
+                    {PAGE_SIZES.map((size) => (
+                        <button
+                            key={size}
+                            onClick={() => handleLimitChange(size)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-all ${
+                                limit === size
+                                    ? "bg-emerald-500 text-white border-emerald-500"
+                                    : "border-gray-200 dark:border-gray-700 hover:border-emerald-400 hover:text-emerald-600"
+                            }`}
+                        >
+                            {size}
+                        </button>
+                    ))}
+                    <span className="text-xs text-gray-400 hidden sm:inline">per page</span>
                 </div>
             </div>
 
@@ -278,10 +313,11 @@ export default function CitySearchResults({ query, city }: { query: string; city
             <div className="flex flex-wrap items-center gap-2">
                 <button
                     onClick={() => setCategoryFilter(null)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${!categoryFilter
-                        ? "bg-emerald-500 text-white border-emerald-500"
-                        : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
-                        }`}
+                    className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                        !categoryFilter
+                            ? "bg-emerald-500 text-white border-emerald-500"
+                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
+                    }`}
                 >
                     All
                 </button>
@@ -289,25 +325,26 @@ export default function CitySearchResults({ query, city }: { query: string; city
                     <button
                         key={cat}
                         onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${categoryFilter === cat
-                            ? "bg-emerald-500 text-white border-emerald-500"
-                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
-                            }`}
+                        className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                            categoryFilter === cat
+                                ? "bg-emerald-500 text-white border-emerald-500"
+                                : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-300"
+                        }`}
                     >
                         {formatTag(cat)}
                     </button>
                 ))}
-
                 <div className="ml-auto flex items-center gap-1 flex-shrink-0">
                     <span className="text-xs text-gray-400 mr-1 hidden sm:inline">Sort:</span>
                     {(["confidence", "name", "status"] as SortKey[]).map((key) => (
                         <button
                             key={key}
                             onClick={() => setSortKey(key)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${sortKey === key
-                                ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white"
-                                : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400"
-                                }`}
+                            className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                                sortKey === key
+                                    ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white"
+                                    : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400"
+                            }`}
                         >
                             {key === "confidence" ? "Confidence" : key === "name" ? "Name" : "Open first"}
                         </button>
@@ -319,19 +356,21 @@ export default function CitySearchResults({ query, city }: { query: string; city
             <div className="flex lg:hidden items-center gap-2 self-end">
                 <button
                     onClick={() => setMobileView("list")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${mobileView === "list"
-                        ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                        : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
-                        }`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                        mobileView === "list"
+                            ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
+                    }`}
                 >
                     <List className="w-3.5 h-3.5" /> List
                 </button>
                 <button
                     onClick={() => setMobileView("map")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${mobileView === "map"
-                        ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                        : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
-                        }`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                        mobileView === "map"
+                            ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                            : "text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-200"
+                    }`}
                 >
                     <MapIcon className="w-3.5 h-3.5" /> Map
                 </button>
@@ -340,11 +379,8 @@ export default function CitySearchResults({ query, city }: { query: string; city
             {/* Results grid + map */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full h-[78vh] relative">
                 {/* Scrollable result cards */}
-                <div
-                    className={`flex flex-col gap-3 overflow-y-auto pr-1 pb-12 ${mobileView === "map" ? "hidden lg:flex" : "flex"
-                        }`}
-                >
-                    {displayedResults.map((res) => (
+                <div className={`flex flex-col gap-3 overflow-y-auto pr-1 pb-4 ${mobileView === "map" ? "hidden lg:flex" : "flex"}`}>
+                    {sorted.map((res) => (
                         <Link
                             href={`/place/${res.id}`}
                             key={res.id}
@@ -362,7 +398,6 @@ export default function CitySearchResults({ query, city }: { query: string; city
                                     </div>
                                 )}
                                 <div className="flex flex-col flex-1 min-w-0 p-4 min-h-[120px]">
-                                    {/* Name + status */}
                                     <div className="flex justify-between items-start gap-2">
                                         <h2 className="text-base font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight">
                                             {res.name || "Unknown Place"}
@@ -371,37 +406,30 @@ export default function CitySearchResults({ query, city }: { query: string; city
                                             <StatusBadge status={res.status} />
                                         </div>
                                     </div>
-
-                                    {/* Category */}
                                     {res.category && (
                                         <span className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400 font-bold uppercase tracking-wider">
                                             <Tag className="w-3 h-3" />
                                             {formatTag(res.category!)}
                                         </span>
                                     )}
-
-                                    {/* Address */}
                                     {res.address && (
                                         <p className="mt-2 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                                             <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" />
                                             <span className="line-clamp-2">{res.address}</span>
                                         </p>
                                     )}
-
-                                    {/* Confidence bar */}
                                     {(res.status === "open" || res.status === "closed") && (
                                         <div className="mt-auto pt-2 flex items-center gap-2">
                                             <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all ${(res.confidence ?? 0) > 0.75
-                                                        ? "bg-emerald-500"
-                                                        : (res.confidence ?? 0) >= 0.5
-                                                            ? "bg-amber-400"
-                                                            : "bg-rose-400"
-                                                        }`}
-                                                    style={{
-                                                        width: `${((res.confidence ?? 0) * 100).toFixed(0)}%`,
-                                                    }}
+                                                    className={`h-full rounded-full transition-all ${
+                                                        (res.confidence ?? 0) > 0.75
+                                                            ? "bg-emerald-500"
+                                                            : (res.confidence ?? 0) >= 0.5
+                                                                ? "bg-amber-400"
+                                                                : "bg-rose-400"
+                                                    }`}
+                                                    style={{ width: `${((res.confidence ?? 0) * 100).toFixed(0)}%` }}
                                                 />
                                             </div>
                                             <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 shrink-0">
@@ -413,19 +441,21 @@ export default function CitySearchResults({ query, city }: { query: string; city
                             </div>
                         </Link>
                     ))}
-                    {isCapped && (
-                        <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-4">
-                            Showing top {DISPLAY_CAP} of {sorted.length} results. Narrow your search for more specific results.
-                        </p>
-                    )}
+
+                    {/* Pagination bar */}
+                    <PaginationBar
+                        page={page}
+                        totalPages={totalPages}
+                        totalCount={totalCount}
+                        limit={limit}
+                        offset={(page - 1) * limit}
+                        onPageChange={handlePageChange}
+                    />
                 </div>
 
                 {/* Map panel */}
-                <div
-                    className={`h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 ${mobileView === "map" ? "block" : "hidden lg:block"
-                        }`}
-                >
-                    <ResultsMap results={displayedResults} boundary={boundary} />
+                <div className={`h-full rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
+                    <ResultsMap results={sorted} boundary={boundary} />
                 </div>
             </div>
         </div>

@@ -3,11 +3,98 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import json
 import requests
+from datetime import datetime, timezone
 from sqlalchemy import text
 
 from .models import SearchResult, PlaceDetail
 from .search import search_places, get_place_record, load_data_to_db
 from .database import engine, Base, IS_POSTGRES
+
+# ---------------------------------------------------------------------------
+# OSM Overpass enrichment helpers
+# ---------------------------------------------------------------------------
+_OSM_TAGS = [
+    "opening_hours", "phone", "website", "cuisine",
+    "wheelchair", "outdoor_seating", "takeaway",
+    "delivery", "wifi", "parking",
+]
+_OSM_ENRICHMENT_TTL_DAYS = 30
+_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
+
+def _needs_osm_enrichment(meta: dict) -> bool:
+    """True if osm_enriched_at is missing or older than 30 days."""
+    ts = meta.get("osm_enriched_at")
+    if not ts:
+        return True
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        return (datetime.now(timezone.utc) - dt).days >= _OSM_ENRICHMENT_TTL_DAYS
+    except Exception:
+        return True
+
+
+def _fetch_osm_tags(lat: float, lon: float, name: str) -> dict:
+    """
+    Query Overpass within 50 m of lat/lon, return dict of matched OSM tags.
+    Returns {} on any failure (timeout, HTTP error, no results).
+    """
+    query = f"[out:json][timeout:3];node(around:50,{lat},{lon});out tags;"
+    try:
+        resp = requests.post(_OVERPASS_URL, data={"data": query}, timeout=3)
+        if resp.status_code != 200:
+            return {}
+        elements = resp.json().get("elements", [])
+        if not elements:
+            return {}
+
+        # Pick element whose name best matches the place name
+        name_lower = (name or "").lower()
+
+        def _score(el):
+            n = (el.get("tags", {}).get("name") or "").lower()
+            if not n or not name_lower:
+                return 0
+            if n == name_lower:
+                return 2
+            if name_lower in n or n in name_lower:
+                return 1
+            return 0
+
+        best = max(elements, key=_score)
+        tags = best.get("tags", {})
+        return {t: tags[t] for t in _OSM_TAGS if t in tags}
+    except Exception:
+        return {}
+
+
+def _write_osm_to_db(place_id: str, osm_patch: dict) -> None:
+    """Persist osm_patch into metadata_json for the given place."""
+    if IS_POSTGRES:
+        patch_json = json.dumps(osm_patch)
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE places SET metadata_json = metadata_json || :patch::jsonb WHERE place_id = :pid"),
+                {"patch": patch_json, "pid": place_id},
+            )
+    else:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT metadata_json FROM places WHERE place_id = :pid"),
+                {"pid": place_id},
+            ).fetchone()
+        meta = {}
+        if row and row.metadata_json:
+            try:
+                meta = json.loads(row.metadata_json)
+            except Exception:
+                pass
+        meta.update(osm_patch)
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE places SET metadata_json = :m WHERE place_id = :pid"),
+                {"m": json.dumps(meta), "pid": place_id},
+            )
 
 app = FastAPI(title="StillOpen API")
 
@@ -132,14 +219,77 @@ def get_place_details(place_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="Place not found")
 
-    # get_place_record already runs predict_status inside _extract_place_info.
-    # We only need to attach the explanation list for the detail view.
     from .predict import predict_status
-    meta = record.get("metadata_json", {})
+    meta = record.get("metadata_json", {}) or {}
     raw = meta.get("raw", meta) if isinstance(meta, dict) else {}
     prediction = predict_status(raw)
 
+    # --- Step 1: OSM Overpass enrichment ---
+    lat, lon = record.get("lat"), record.get("lon")
+    name = record.get("name", "")
+    # Check both the outer metadata and raw sub-dict for the enrichment timestamp
+    enrichment_check = {**meta, **raw} if isinstance(meta, dict) else raw
+
+    osm_fields: dict = {}
+    if lat and lon:
+        if _needs_osm_enrichment(enrichment_check):
+            fetched = _fetch_osm_tags(lat, lon, name)
+            if fetched:
+                now_ts = datetime.now(timezone.utc).isoformat()
+                osm_patch = {**fetched, "osm_enriched_at": now_ts}
+                try:
+                    _write_osm_to_db(place_id, osm_patch)
+                except Exception as e:
+                    print(f"OSM DB write failed for {place_id}: {e}")
+                osm_fields = osm_patch
+        else:
+            # Surface already-stored OSM fields
+            for tag in _OSM_TAGS + ["osm_enriched_at"]:
+                val = enrichment_check.get(tag)
+                if val is not None:
+                    osm_fields[tag] = val
+
+    # --- Step 2: Surface Overture data already in DB ---
+    brand_name: str | None = None
+    brand_data = raw.get("brand") or {}
+    if isinstance(brand_data, dict):
+        # Overture brand schema: brand.names.common[0].value
+        names = brand_data.get("names", {})
+        if isinstance(names, dict):
+            common = names.get("common") or []
+            if isinstance(common, list) and common:
+                brand_name = common[0].get("value") if isinstance(common[0], dict) else None
+        if not brand_name:
+            brand_name = brand_data.get("name") or brand_data.get("wikidata")
+
+    sources_raw = raw.get("sources") or []
+    sources: list[str] | None = None
+    if isinstance(sources_raw, list) and sources_raw:
+        sources = [
+            s.get("dataset") for s in sources_raw
+            if isinstance(s, dict) and s.get("dataset")
+        ] or None
+
+    overture_confidence = raw.get("confidence") if isinstance(raw.get("confidence"), (int, float)) else None
+
+    # Prefer OSM enrichment for phone/website/opening_hours when available
     return {
         **record,
         "explanation": prediction.get("explanation", []),
+        "phone": osm_fields.get("phone") or record.get("phone"),
+        "website": osm_fields.get("website") or record.get("website"),
+        "opening_hours": osm_fields.get("opening_hours") or record.get("opening_hours"),
+        # OSM amenity fields
+        "cuisine": osm_fields.get("cuisine"),
+        "wheelchair": osm_fields.get("wheelchair"),
+        "outdoor_seating": osm_fields.get("outdoor_seating"),
+        "takeaway": osm_fields.get("takeaway"),
+        "delivery": osm_fields.get("delivery"),
+        "wifi": osm_fields.get("wifi"),
+        "parking": osm_fields.get("parking"),
+        "osm_enriched_at": osm_fields.get("osm_enriched_at"),
+        # Overture fields
+        "brand": brand_name,
+        "sources": sources,
+        "overture_confidence": overture_confidence,
     }

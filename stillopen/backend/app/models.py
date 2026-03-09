@@ -48,6 +48,19 @@ class PlaceDetail(BaseModel):
     website_status: Optional[str] = None
     website_checked_at: Optional[str] = None
     website_http_code: Optional[int] = None
+    # OSM Overpass enrichment
+    cuisine: Optional[str] = None
+    wheelchair: Optional[str] = None
+    outdoor_seating: Optional[str] = None
+    takeaway: Optional[str] = None
+    delivery: Optional[str] = None
+    wifi: Optional[str] = None
+    parking: Optional[str] = None
+    osm_enriched_at: Optional[str] = None
+    # Overture data already in DB
+    brand: Optional[str] = None
+    sources: Optional[List[str]] = None
+    overture_confidence: Optional[float] = None
 
 
 # --- SQLAlchemy Database Models ---
